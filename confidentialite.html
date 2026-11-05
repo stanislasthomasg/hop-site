@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Confidentialité de Hop</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="stylesheet" href="legal.css">
+</head>
+<body>
+<main>
+  <a class="back" href="./">Retour à Hop</a>
+  <h1>Confidentialité</h1>
+  <p class="date">Dernière mise à jour : 5 novembre 2026</p>
+  <p>Hop sert à envoyer ce que tu copies à tes amis. Cette page dit quelles données existent, pourquoi, où elles vont et comment les effacer. Hop est réservé aux personnes de 15 ans et plus.</p>
+
+  <h2>Qui s'en occupe</h2>
+  <p>Hop est un projet étudiant non commercial, responsable du traitement : Stan. Contact : <a href="https://github.com/stanislasthomasg/hop-site/issues">page d'échanges du projet</a> (un compte GitHub gratuit est nécessaire, et ces échanges sont publics : n'y mets rien de personnel).</p>
+
+  <h2>Ce que Hop garde sur le serveur</h2>
+  <div class="table"><table>
+    <tr><th>Donnée</th><th>Pourquoi</th><th>Durée</th></tr>
+    <tr><td>Identifiant de compte anonyme, clé publique, code d'ami</td><td>Te reconnaître et permettre le chiffrement</td><td>Jusqu'à la suppression du compte, ou 12 mois sans activité</td></tr>
+    <tr><td>Pseudo, emoji et couleur d'avatar</td><td>Te montrer à tes amis et à qui tu envoies une demande</td><td>Même durée</td></tr>
+    <tr><td>Liens d'amitié, demandes et blocages</td><td>Décider qui peut t'écrire</td><td>Même durée. Un lien retiré est effacé après 30 jours</td></tr>
+    <tr><td>Dernière activité</td><td>Afficher « en ligne », et effacer les comptes inactifs</td><td>Même durée</td></tr>
+    <tr><td>Contenus chiffrés (texte, images, fichiers, photo de profil), avec expéditeur, destinataire, taille et date</td><td>Livrer ce que tu envoies</td><td>Effacés à la réception, et au plus tard après 24 heures</td></tr>
+    <tr><td>Compteurs techniques (essais de codes, améliorations par l'IA)</td><td>Limiter les abus et les coûts</td><td>30 jours au plus</td></tr>
+    <tr><td>Journaux techniques de l'hébergeur, qui peuvent contenir ton adresse IP</td><td>Faire fonctionner et sécuriser le service</td><td>Selon les règles de Supabase</td></tr>
+  </table></div>
+  <p>Hop ne demande ni e-mail ni mot de passe. Il n'y a ni publicité, ni revente de données, ni outil de suivi.</p>
+
+  <h2>Ce que le serveur ne peut pas lire</h2>
+  <p>Tes contenus et ta photo de profil sont chiffrés sur ton ordinateur avant de partir, et seuls tes amis peuvent les déchiffrer. Le serveur voit en revanche qui écrit à qui, quand, et la taille des envois.</p>
+
+  <h2>Ce qui reste sur ton ordinateur</h2>
+  <p>Tes clés, ton historique et les photos de tes amis sont chiffrés sur ton ordinateur. Les fichiers reçus vont dans ton dossier Téléchargements/Hop, où ils ne sont pas chiffrés. Ce que tes amis ont déjà reçu reste chez eux, même si tu supprimes ton compte.</p>
+
+  <h2>L'IA, seulement sur ton clic</h2>
+  <p>Quand elle est activée, le bouton « Améliorer » envoie le texte choisi à Claude, le service d'IA d'Anthropic. Ce texte sort alors du chiffrement et passe par le serveur de Hop, qui ne l'enregistre pas. Anthropic peut le traiter hors de l'Union européenne, notamment aux États-Unis, selon ses propres conditions. Hop te prévient avant le premier envoi, et rien ne part sans ton clic. N'utilise pas ce bouton sur un texte privé, ni sur un texte qui concerne quelqu'un d'autre sans son accord.</p>
+
+  <h2>Pourquoi Hop peut traiter ces données</h2>
+  <p>Ces données servent à te fournir le service que tu demandes en utilisant Hop. Les limites et les journaux techniques reposent sur l'intérêt légitime à le sécuriser. L'envoi à l'IA repose sur ton accord, que tu peux retirer à tout moment dans les réglages.</p>
+
+  <h2>Chez qui</h2>
+  <ul>
+    <li><strong>Supabase</strong> : base de données et stockage, sur des serveurs situés en Irlande.</li>
+    <li><strong>GitHub</strong> : héberge ce site et les installateurs. GitHub peut enregistrer les adresses IP des visiteurs.</li>
+    <li><strong>Anthropic</strong> : l'IA, uniquement pour les textes que tu choisis d'améliorer.</li>
+  </ul>
+
+  <h2>Tes droits</h2>
+  <p>Tu peux tout effacer toi-même : dans Hop, ouvre <strong>Réglages</strong>, puis <strong>Supprimer mon compte</strong>. Ton compte et tes liens d'amitié sont effacés aussitôt, et tes fichiers en attente au plus tard après 24 heures. Le compte étant anonyme, garde ton code d'ami si tu fais une demande par la page d'échanges : c'est le seul moyen de te retrouver.</p>
+  <p>Tu as aussi le droit d'accéder à tes données, de les corriger, de t'opposer à leur traitement et de les récupérer. Tu peux enfin déposer une réclamation auprès de la <a href="https://www.cnil.fr/fr/plaintes">CNIL</a>.</p>
+</main>
+</body>
+</html>

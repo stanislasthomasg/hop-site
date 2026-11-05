@@ -5,12 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hop</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="icon" type="image/png" href="icon.png">
 <meta name="description" content="Envoie ce que tu copies à ton voisin de classe, en un raccourci. Texte, images et fichiers, chiffrés de bout en bout.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<link rel="icon" type="image/png" href="icon.png">
 <style>
+@font-face { font-family: 'Bricolage Grotesque'; src: url('fonts/bricolage.woff2') format('woff2'); font-weight: 200 800; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
 /* Mise en page : le bond de la balle traverse le haut de page, tout le reste suit le trajet Copie, Hop, Colle. */
 :root {
   --bg: #fbf9ff;
@@ -205,7 +204,7 @@ effet amplifié (multiplicateur)</p>
       <div class="fact"><h3>Seulement tes amis</h3><p>Personne ne peut t'écrire sans ton accord. Tu peux retirer ou bloquer quelqu'un à tout moment.</p></div>
       <div class="fact"><h3>Effacé dès réception</h3><p>Le serveur supprime le contenu quand ton ami l'a reçu, et au plus tard après 24 heures.</p></div>
       <div class="fact"><h3>L'IA, seulement si tu cliques</h3><p>Le texte que tu choisis d'améliorer sort du chiffrement et il est lu par l'IA (Claude, d'Anthropic). Hop te prévient avant.</p></div>
-      <div class="fact"><h3>Ce que le serveur sait</h3><p>Ton pseudo, ton avatar emoji, tes liens d'amitié, la taille des envois, et qui écrit à qui et quand.</p></div>
+      <div class="fact"><h3>Ce que le serveur sait</h3><p>Ton pseudo, ton avatar emoji, tes liens d'amitié, la taille des envois, et qui écrit à qui et quand. Tu peux tout effacer depuis les réglages. <a href="confidentialite.html">Tout le détail</a>.</p></div>
     </div>
   </section>
 </div></div>
@@ -235,7 +234,7 @@ effet amplifié (multiplicateur)</p>
 </div></div>
 
 <div class="band"><div class="wrap">
-  <footer>Hop, fait pour se passer ses notes en classe.</footer>
+  <footer>Hop, fait pour se passer ses notes en classe. Réservé aux 15 ans et plus. <a href="confidentialite.html">Confidentialité</a> · <a href="mentions-legales.html">Mentions légales</a></footer>
 </div></div>
 
 <script>
