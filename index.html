@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hop</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" type="image/png" href="icon.png">
+<meta name="description" content="Envoie ce que tu copies à ton voisin de classe, en un raccourci. Texte, images et fichiers, chiffrés de bout en bout.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Mise en page : le bond de la balle traverse le haut de page, tout le reste suit le trajet Copie, Hop, Colle. */
+:root {
+  --bg: #fbf9ff;
+  --surface: #ffffff;
+  --tint: #f1ecff;
+  --ink: #1d1636;
+  --muted: #5d5578;
+  --line: rgb(60 35 130 / .13);
+  --accent: #6a3df0;
+  --accent-2: #8e2fe6;
+  --on-accent: #ffffff;
+  --pop: #ff5d73;
+  --sun: #ffb61e;
+  --sun-tint: #fff3d6;
+  --mint: #0c9f7e;
+  --mint-tint: #dcf7ef;
+  --pop-tint: #ffe5e9;
+  --shadow: 0 24px 60px -24px rgb(60 30 150 / .4);
+  --display: 'Bricolage Grotesque', 'Inter', system-ui, sans-serif;
+  --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #120e24; --surface: #1c1733; --tint: #251e44; --ink: #f5f2ff; --muted: #b0a8cc; --line: rgb(205 190 255 / .15);
+    --accent: #a990ff; --accent-2: #d08cff; --on-accent: #150f2b; --pop: #ff7d8f; --sun: #ffc94d; --sun-tint: #3a2f14;
+    --mint: #3fe0bb; --mint-tint: #123a31; --pop-tint: #40202b; --shadow: 0 24px 60px -24px rgb(0 0 0 / .8); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #120e24; --surface: #1c1733; --tint: #251e44; --ink: #f5f2ff; --muted: #b0a8cc; --line: rgb(205 190 255 / .15);
+  --accent: #a990ff; --accent-2: #d08cff; --on-accent: #150f2b; --pop: #ff7d8f; --sun: #ffc94d; --sun-tint: #3a2f14;
+  --mint: #3fe0bb; --mint-tint: #123a31; --pop-tint: #40202b; --shadow: 0 24px 60px -24px rgb(0 0 0 / .8); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17px/1.6 var(--body); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+.band { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1080px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--display); font-weight: 800; letter-spacing: -.025em; line-height: 1.02; margin: 0; text-wrap: balance; }
+h2 { font-size: clamp(32px, 5vw, 52px); }
+h3 { font-size: 22px; letter-spacing: -.015em; line-height: 1.15; }
+p { margin: 0; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 22px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font: 800 24px var(--display); text-decoration: none; }
+.top a.link { color: var(--muted); font-weight: 500; font-size: 15px; text-decoration: none; }
+.top a.link:hover { color: var(--accent); }
+
+.hero { display: grid; gap: 40px; padding-block: 28px 72px; }
+.hero h1 { font-size: clamp(58px, 12.5vw, 146px); line-height: .92; }
+.hero h1 em { font-style: normal; background: linear-gradient(95deg, var(--accent), var(--accent-2) 55%, var(--pop)); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .04em; }
+.lead { font-size: clamp(19px, 2.3vw, 24px); line-height: 1.45; color: var(--muted); max-width: 34em; }
+.cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 16px; padding: 15px 24px; font-weight: 600; font-size: 16px; text-decoration: none; transition: transform .16s, filter .16s; }
+.button:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.button:active { transform: scale(.97); }
+.button.main { background: linear-gradient(95deg, var(--accent), var(--accent-2)); color: var(--on-accent); box-shadow: 0 12px 28px -12px var(--accent); }
+.button.other { background: var(--surface); border: 1px solid var(--line); }
+.fine { font-size: 14px; color: var(--muted); }
+
+/* Démo : deux écrans, et une balle qui porte le texte de l'un à l'autre. */
+.demo { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: clamp(40px, 12vw, 150px); padding-top: 96px; }
+.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 18px 20px 22px; box-shadow: var(--shadow); min-width: 0; }
+.who { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; margin-bottom: 12px; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; font-size: 18px; flex: none; }
+.note { font-family: var(--mono); font-size: clamp(12px, 1.5vw, 14px); line-height: 1.55; overflow-wrap: anywhere; }
+.keys { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 13px; color: var(--muted); }
+kbd { font: 600 12px var(--body); background: var(--tint); border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; color: var(--ink); }
+.ball { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--pop)); position: absolute; left: 0; top: 0; offset-path: path('M0 120 C 180 -60, 520 -60, 700 120'); animation: hop 3.4s cubic-bezier(.45,.05,.55,.95) infinite; box-shadow: 0 8px 18px -4px var(--accent); }
+.arc-wrap { position: absolute; left: 50%; top: 0; width: 700px; height: 130px; margin-left: -350px; pointer-events: none; }
+@keyframes hop { 0%, 12% { offset-distance: 0%; } 62%, 100% { offset-distance: 100%; } }
+.received { animation: land 3.4s ease-out infinite; transform-origin: 50% 100%; }
+@keyframes land { 0%, 58% { transform: none; } 64% { transform: translateY(5px) scaleY(.98); } 72%, 100% { transform: none; } }
+
+section { padding-block: 72px; }
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 36px; }
+.step { border-radius: 24px; padding: 26px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.step p { color: var(--muted); font-size: 16px; }
+.step.a { background: var(--sun-tint); } .step.b { background: var(--tint); } .step.c { background: var(--mint-tint); }
+
+.ai { background: var(--tint); }
+.ai .head { display: grid; gap: 16px; max-width: 44em; }
+.compare { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 6fr); gap: 16px; margin-top: 36px; }
+.pane { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 26px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.pane.after .label { color: var(--accent); }
+.scrawl { font-family: var(--mono); font-size: 15px; line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; }
+.flag { background: var(--sun-tint); border-radius: 12px; padding: 12px 14px; font-size: 15px; }
+.flag strong { font-weight: 600; }
+
+.facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px; margin-top: 28px; }
+.fact { padding-block: 22px; border-top: 1px solid var(--line); display: grid; gap: 6px; min-width: 0; }
+.fact p { color: var(--muted); font-size: 16px; }
+
+.get { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 32px; }
+.os { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 26px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.os p { color: var(--muted); font-size: 15px; }
+.os .button { width: 100%; }
+footer { padding-block: 32px 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+
+@media (max-width: 760px) {
+  .steps, .compare, .facts { grid-template-columns: minmax(0, 1fr); }
+  .demo { gap: 14px; padding-top: 74px; }
+  .screen { padding: 14px; }
+  .arc-wrap { width: 300px; margin-left: -150px; height: 70px; }
+  .ball { width: 20px; height: 20px; offset-path: path('M0 62 C 80 -26, 220 -26, 300 62'); }
+  section { padding-block: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ball, .received { animation: none; }
+  .ball { offset-distance: 50%; }
+  .button { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="band"><div class="wrap">
+  <header class="top">
+    <a class="brand" href="#top" aria-label="Hop, haut de page">
+      <svg width="30" height="30" viewBox="0 0 1024 1024" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6a3df0"/><stop offset="1" stop-color="#ff5d73"/></linearGradient></defs><path d="M170 810C260 250 680 170 850 640" fill="none" stroke="url(#g)" stroke-opacity=".55" stroke-width="96" stroke-linecap="round"/><circle cx="850" cy="660" r="130" fill="url(#g)"/></svg>
+      Hop
+    </a>
+    <a class="link" href="#telecharger">Télécharger</a>
+  </header>
+
+  <div class="hero" id="top">
+    <h1>Copie.<br><em>Hop.</em><br>Colle.</h1>
+    <p class="lead">Ton voisin a les notes qu'il te faut ? Il copie, il appuie sur un raccourci, et le texte arrive chez toi. Plus besoin de mail pour trois lignes.</p>
+    <div class="cta">
+      <a class="button main" id="main-download" href="#telecharger">Télécharger Hop</a>
+      <span class="fine">Gratuit, pour Mac et Windows.</span>
+    </div>
+
+    <div class="demo" aria-label="Exemple : Stan copie ses notes, elles arrivent chez Léa">
+      <div class="arc-wrap" aria-hidden="true"><span class="ball"></span></div>
+      <div class="screen">
+        <div class="who"><span class="avatar" style="background:#fde68a" aria-hidden="true">🦊</span>Stan</div>
+        <p class="note">Macro TD3 : PIB = C + I + G + (X − M)</p>
+        <p class="keys">Il copie, puis <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>Espace</kbd></p>
+      </div>
+      <div class="screen received">
+        <div class="who"><span class="avatar" style="background:#a7f3d0" aria-hidden="true">🐸</span>Léa</div>
+        <p class="note">Macro TD3 : PIB = C + I + G + (X − M)</p>
+        <p class="keys">Elle reçoit, puis <kbd>Ctrl</kbd><kbd>V</kbd></p>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="band"><div class="wrap">
+  <section aria-labelledby="comment">
+    <h2 id="comment">Trois gestes, et c'est chez ton ami</h2>
+    <div class="steps">
+      <div class="step a"><h3>Tu copies</h3><p>Comme d'habitude. Hop ne regarde rien tant que tu n'as pas appuyé sur ton raccourci.</p></div>
+      <div class="step b"><h3>Tu fais hop</h3><p>Une petite fenêtre s'ouvre avec tes amis, le dernier en premier. Entrée, et c'est parti. Ça marche aussi pour tout ton groupe de TD.</p></div>
+      <div class="step c"><h3>Il colle</h3><p>Une notification glisse sur son écran. Un clic pour copier, et il colle. S'il est hors ligne, ça l'attend 24 heures.</p></div>
+    </div>
+  </section>
+</div></div>
+
+<div class="band ai"><div class="wrap">
+  <section aria-labelledby="ia">
+    <div class="head">
+      <h2 id="ia">Des notes en vrac ? L'IA les rend claires.</h2>
+      <p class="lead">Un clic sur « Améliorer », et la version réécrite s'affiche à côté de l'originale. Elle reste dans ce que disent tes notes, et signale chaque exemple qu'elle ajoute.</p>
+    </div>
+    <div class="compare">
+      <div class="pane">
+        <p class="label">Tes notes</p>
+        <p class="scrawl">PIB = C + I + G + (X−M)
+si conso ↓ → PIB ↓
+effet amplifié (multiplicateur)</p>
+      </div>
+      <div class="pane after">
+        <p class="label">La version de l'IA (illustration)</p>
+        <p>Le PIB s'obtient en additionnant la consommation (C), l'investissement (I), les dépenses publiques (G) et les exportations nettes, c'est-à-dire les exportations moins les importations (X − M).</p>
+        <p>Quand la consommation baisse, le PIB baisse aussi. L'effet multiplicateur amplifie cette baisse.</p>
+        <p class="flag"><strong>Exemple ajouté par l'IA :</strong> avec des chiffres fictifs, si les ménages dépensent 10 de moins, le PIB peut baisser de plus de 10.</p>
+      </div>
+    </div>
+  </section>
+</div></div>
+
+<div class="band"><div class="wrap">
+  <section aria-labelledby="prive">
+    <h2 id="prive">Tes notes restent entre vous</h2>
+    <div class="facts">
+      <div class="fact"><h3>Rien ne part tout seul</h3><p>Seul ton raccourci envoie quelque chose. Tes autres copier-coller restent chez toi.</p></div>
+      <div class="fact"><h3>Chiffré de bout en bout</h3><p>Texte, images, fichiers et photo de profil sont chiffrés sur ton ordinateur. Le serveur ne peut pas les lire.</p></div>
+      <div class="fact"><h3>Seulement tes amis</h3><p>Personne ne peut t'écrire sans ton accord. Tu peux retirer ou bloquer quelqu'un à tout moment.</p></div>
+      <div class="fact"><h3>Effacé dès réception</h3><p>Le serveur supprime le contenu quand ton ami l'a reçu, et au plus tard après 24 heures.</p></div>
+      <div class="fact"><h3>L'IA, seulement si tu cliques</h3><p>Le texte que tu choisis d'améliorer sort du chiffrement et il est lu par l'IA (Claude, d'Anthropic). Hop te prévient avant.</p></div>
+      <div class="fact"><h3>Ce que le serveur sait</h3><p>Ton pseudo, ton avatar emoji, tes liens d'amitié, la taille des envois, et qui écrit à qui et quand.</p></div>
+    </div>
+  </section>
+</div></div>
+
+<div class="band"><div class="wrap">
+  <section id="telecharger" aria-labelledby="dl">
+    <h2 id="dl">Installe Hop</h2>
+    <div class="get">
+      <div class="os" id="os-mac-arm">
+        <h3>Mac avec puce Apple</h3>
+        <a class="button other" href="https://github.com/stanislasthomasg/hop-site/releases/latest/download/Hop-mac-arm64.dmg">Télécharger le .dmg</a>
+        <p>Si le Mac bloque l'ouverture : Réglages Système, Confidentialité et sécurité, puis « Ouvrir quand même ».</p>
+      </div>
+      <div class="os" id="os-mac-intel">
+        <h3>Mac Intel</h3>
+        <a class="button other" href="https://github.com/stanislasthomasg/hop-site/releases/latest/download/Hop-mac-x64.dmg">Télécharger le .dmg</a>
+        <p>Même démarche la première fois. Pour vérifier ta puce : menu Pomme, puis « À propos de ce Mac ».</p>
+      </div>
+      <div class="os" id="os-windows">
+        <h3>Windows</h3>
+        <a class="button other" href="https://github.com/stanislasthomasg/hop-site/releases/latest/download/Hop-windows-x64.exe">Télécharger le .exe</a>
+        <p>Si SmartScreen s'affiche : « Informations complémentaires », puis « Exécuter quand même ».</p>
+      </div>
+    </div>
+    <p class="fine" style="margin-top:20px">Ces avertissements apparaissent parce que Hop, projet étudiant, n'a pas de certificat payant. Il n'y a pas encore de mise à jour automatique.</p>
+  </section>
+</div></div>
+
+<div class="band"><div class="wrap">
+  <footer>Hop, fait pour se passer ses notes en classe.</footer>
+</div></div>
+
+<script>
+// Le bouton principal propose directement la version de cet ordinateur quand on peut la reconnaître.
+(function () {
+  var platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+  var isWindows = /win/i.test(platform);
+  var main = document.getElementById('main-download');
+  if (isWindows) {
+    main.href = 'https://github.com/stanislasthomasg/hop-site/releases/latest/download/Hop-windows-x64.exe';
+    main.textContent = 'Télécharger pour Windows';
+  } else if (/mac/i.test(platform)) {
+    // Un navigateur ne dit pas de façon fiable quelle puce a le Mac : on laisse choisir plus bas.
+    main.textContent = 'Télécharger pour Mac';
+  }
+})();
+</script>
+</body>
+</html>
