@@ -144,6 +144,10 @@ Le dossier `site/` est un site **statique** : le bot tourne entièrement dans le
 
 Il se publie tel quel sur GitHub Pages, Netlify ou dans un sous-dossier d'un site existant, par exemple `/poker/`. Pour récupérer Pyodide en local : `npm pack pyodide@0.26.4`, puis décompresser l'archive.
 
+Deux options pour les hébergeurs plus restrictifs :
+- `--inline` : CSS et JS placés dans la page, sans balises `html`/`head`/`body` ;
+- `--base64` : les `.zip` et `.gz` sont livrés en `.txt` encodés en base64, pour les hébergeurs qui refusent ces formats.
+
 ## Plateformes pour bots
 
 Ce sont des endroits prévus pour que des bots s'affrontent (simulation, recherche, compétition) :
@@ -175,6 +179,17 @@ Le bot ne se connecte pas aux sites de poker en argent réel. Leurs conditions d
 Avec un arbre plus petit, v2 a convergé beaucoup mieux que v1. Il bat les trois variantes d'ABC et la version précédente, ce qui en fait la meilleure version.
 
 v1 gagne plus que v2 contre les bots très faibles (aléatoire, maniac). C'est attendu : le CFR vise l'équilibre, pas l'exploitation maximale. La couche d'exploitation compense en partie.
+
+### Versions cash game (rake 5 %, tapis de 40 à 250 bb tirés à chaque donne)
+
+| Version | Entraînement | N1 | N2 | N3 | N4 contre v2 |
+|---|---|---|---|---|---|
+| bot_v3 | 3 M it., rake, 3 profondeurs | +189 ✅ | +30 ✅ | +18 contre v1 ✅ | −12 [−25, +0,3] (reste) |
+| bot_v4 | v3 + 1,5 M it. | +185 ✅ | +38 ✅ | +16 ✅ | −12 [−24, +0,2] (reste) |
+
+v2 reste la meilleure version. Les versions entraînées avec rake sur trois profondeurs consacrent moins d'itérations à chaque profondeur et ne la battent pas encore en face-à-face. C'est la prochaine piste à creuser.
+
+En 6-max, face à 5 profils ABC/station/nit, en duplicate et en conditions cash, le bot gagne +77 bb/100 [+36, +119]. La stratégie MCCFR préflop ne fait pas mieux que les règles ABC face à ce champ : l'écart apparié est de −9 [−47, +29], donc non significatif. Les ranges 6-max sont réalistes : UTG ouvre 13 %, BTN 40 %, et la BB défend 68 % face au bouton.
 
 ## Limites connues (honnêtes)
 

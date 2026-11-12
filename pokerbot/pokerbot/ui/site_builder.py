@@ -47,7 +47,7 @@ def _pruned(src: Path, min_weight: float) -> bytes:
 
 def build_site(out: str | Path, version: str = "best", pyodide_dir: str | None = None,
                min_weight: float = 20.0, title: str = "Poker contre le bot",
-               inline: bool = False) -> Path:
+               inline: bool = False, base64_binaries: bool = False) -> Path:
     """``inline=True``: CSS and JS inlined into index.html, body content only (no
     html/head/body tags), for hosts that wrap the page in their own skeleton."""
     out = Path(out)
@@ -96,10 +96,22 @@ def build_site(out: str | Path, version: str = "best", pyodide_dir: str | None =
                         f'<script>window.PYODIDE_URL = "{pyodide_url}";</script>\n'
                         f'<script src="{pyodide_url}pyodide.js"></script>\n'
                         '<script src="app.js"></script>\n<script src="play.js"></script>')
+    if base64_binaries:
+        # hosts that refuse .zip/.gz: ship them as base64 text, decoded in the browser
+        import base64
+        for f in [out / "pokerbot.zip", *(out / "model").glob("*.gz"), out / "pyodide" / "python_stdlib.zip"]:
+            if f.exists():
+                f.with_name(f.name + ".b64.txt").write_text(base64.b64encode(f.read_bytes()).decode())
+                f.unlink()
+        manifest = json.loads((out / "model" / "manifest.json").read_text())
+        manifest["b64"] = True
+        (out / "model" / "manifest.json").write_text(json.dumps(manifest))
+        html = html.replace('<script>window.PYODIDE_URL', '<script>window.SITE_B64 = true;</script>\n<script>window.PYODIDE_URL')
     if inline:
         css = (WEB / "style.css").read_text()
         body = html[html.index("<header>"): html.index("</body>")]
-        scripts = (f'<script>window.PYODIDE_URL = "{pyodide_url}";</script>\n'
+        scripts = (("<script>window.SITE_B64 = true;</script>\n" if base64_binaries else "")
+                   + f'<script>window.PYODIDE_URL = "{pyodide_url}";</script>\n'
                    f'<script src="{pyodide_url}pyodide.js"></script>\n'
                    f"<script>{(WEB / 'site_app.js').read_text()}</script>\n"
                    f"<script>{(WEB / 'play.js').read_text()}</script>")

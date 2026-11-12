@@ -130,7 +130,8 @@ def cmd_dashboard(a):
 
 def cmd_build_site(a):
     from .ui.site_builder import build_site
-    out = build_site(a.out, a.version, a.pyodide_dir, title=a.title, inline=a.inline)
+    out = build_site(a.out, a.version, a.pyodide_dir, title=a.title, inline=a.inline,
+                     base64_binaries=a.base64)
     size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file()) / 1e6
     print(f"site statique écrit dans {out} ({size:.1f} Mo). À publier tel quel sur n'importe quel hébergeur.")
 
@@ -248,6 +249,7 @@ def main(argv: list[str] | None = None) -> None:
                    help="dossier Pyodide 0.26.4 à embarquer (sinon chargé depuis le CDN jsdelivr)")
     s.add_argument("--title", default="Poker contre le bot")
     s.add_argument("--inline", action="store_true", help="CSS/JS dans la page, sans balises html/head/body")
+    s.add_argument("--base64", action="store_true", help="binaires en base64 (.txt) pour les hébergeurs qui refusent .zip/.gz")
     s.set_defaults(func=cmd_build_site)
 
     s = sub.add_parser("acpc", help="jouer sur un serveur de compétition de bots (protocole ACPC)")

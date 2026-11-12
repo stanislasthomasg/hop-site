@@ -4,14 +4,24 @@
   const loading = document.getElementById("loading");
   const start = document.getElementById("start");
   start.disabled = true;
+  const B64 = !!window.SITE_B64;      // binaries shipped as base64 text on some hosts
   const bytes = async (url) => {
-    const r = await fetch(url);
+    const r = await fetch(B64 && !url.endsWith(".json") ? `${url}.b64.txt` : url);
     if (!r.ok) throw new Error(`${url} : ${r.status}`);
-    return new Uint8Array(await r.arrayBuffer());
+    if (!B64 || url.endsWith(".json")) return new Uint8Array(await r.arrayBuffer());
+    const bin = atob((await r.text()).trim());
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
   };
   try {
     loading.textContent = "Chargement du moteur Python dans le navigateur (≈ 15 Mo, une seule fois)…";
-    const py = await loadPyodide({ indexURL: window.PYODIDE_URL });
+    const opts = { indexURL: window.PYODIDE_URL };
+    if (B64) {
+      const std = await bytes(`${window.PYODIDE_URL}python_stdlib.zip`);
+      opts.stdLibURL = URL.createObjectURL(new Blob([std], { type: "application/zip" }));
+    }
+    const py = await loadPyodide(opts);
     loading.textContent = "Chargement du bot…";
     py.unpackArchive(await bytes("pokerbot.zip"), "zip", { extractDir: "/app" });
     const manifest = await (await fetch("model/manifest.json")).json();
