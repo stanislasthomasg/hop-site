@@ -30,7 +30,7 @@ import os, sys
 sys.path.insert(0, "/app")
 os.environ["POKERBOT_MODELS"] = "/app/models"
 from pokerbot.ui.web_server import App
-app = App(["bot:best"], db=False)
+app = App(["bot:best"], db=False, search=False)   # river search is too slow in pure Python
 `);
     const app = py.globals.get("app");
     window.pokerApi = async (path, body) => {

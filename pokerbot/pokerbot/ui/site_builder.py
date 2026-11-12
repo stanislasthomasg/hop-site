@@ -46,7 +46,10 @@ def _pruned(src: Path, min_weight: float) -> bytes:
 
 
 def build_site(out: str | Path, version: str = "best", pyodide_dir: str | None = None,
-               min_weight: float = 20.0, title: str = "Poker contre le bot") -> Path:
+               min_weight: float = 20.0, title: str = "Poker contre le bot",
+               inline: bool = False) -> Path:
+    """``inline=True``: CSS and JS inlined into index.html, body content only (no
+    html/head/body tags), for hosts that wrap the page in their own skeleton."""
     out = Path(out)
     v = resolve(version)
     src = models_dir() / v
@@ -93,5 +96,18 @@ def build_site(out: str | Path, version: str = "best", pyodide_dir: str | None =
                         f'<script>window.PYODIDE_URL = "{pyodide_url}";</script>\n'
                         f'<script src="{pyodide_url}pyodide.js"></script>\n'
                         '<script src="app.js"></script>\n<script src="play.js"></script>')
+    if inline:
+        css = (WEB / "style.css").read_text()
+        body = html[html.index("<header>"): html.index("</body>")]
+        scripts = (f'<script>window.PYODIDE_URL = "{pyodide_url}";</script>\n'
+                   f'<script src="{pyodide_url}pyodide.js"></script>\n'
+                   f"<script>{(WEB / 'site_app.js').read_text()}</script>\n"
+                   f"<script>{(WEB / 'play.js').read_text()}</script>")
+        body = body[: body.index("<script>window.PYODIDE_URL")] + scripts
+        html = (f"<title>{title}</title>\n"
+                '<meta name="claude:viewport-fit-sides" content="cover">\n'
+                f"<style>{css}</style>\n{body}\n")
+        for f in ("style.css", "play.js", "app.js"):
+            (out / f).unlink()
     (out / "index.html").write_text(html)
     return out

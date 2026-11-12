@@ -23,17 +23,19 @@ TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
 class App:
     """Game API shared by the local server and the browser build (Pyodide)."""
 
-    def __init__(self, default_opponents: list[str], seed: int | None = None, db=None) -> None:
+    def __init__(self, default_opponents: list[str], seed: int | None = None, db=None,
+                 search: bool = True) -> None:
         self.lock = threading.Lock()
         self.default = default_opponents
         self.seed = seed
         self.db = db
+        self.search = search
         self.session: GameSession | None = None
 
     def new_session(self, opponents: list[str]) -> dict:
         if self.session:
             self.session.close()
-        self.session = GameSession(opponents, seed=self.seed, db=self.db)
+        self.session = GameSession(opponents, seed=self.seed, db=self.db, search=self.search)
         self.session.new_hand()
         return self.session.snapshot()
 
