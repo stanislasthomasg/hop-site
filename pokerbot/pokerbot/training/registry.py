@@ -108,6 +108,31 @@ def load_blueprint(version: str):
             CardAbstraction.from_dict(json.loads((d / "abstraction.json").read_text())))
 
 
+def load_sixmax(version: str):
+    """6-max preflop blueprint attached to ``version`` (None if it has none)."""
+    f = models_dir() / resolve(version) / "sixmax.pkl.gz"
+    return _load(f) if f.exists() else None
+
+
+def save_sixmax(version: str, tables) -> Path:
+    d = models_dir() / resolve(version)
+    _dump(average_strategy(tables), d / "sixmax.pkl.gz")
+    _dump({"regret": tables.regret, "strat": tables.strat, "actions": tables.actions,
+           "iterations": tables.iterations, "batches": tables.batches}, d / "sixmax_tables.pkl.gz")
+    update_meta(version, sixmax_iterations=tables.iterations, sixmax_infosets=len(tables.strat))
+    return d
+
+
+def load_sixmax_tables(version: str):
+    f = models_dir() / resolve(version) / "sixmax_tables.pkl.gz"
+    t = Tables()
+    if f.exists():
+        raw = _load(f)
+        t.regret, t.strat, t.actions = raw["regret"], raw["strat"], raw["actions"]
+        t.iterations, t.batches = raw["iterations"], raw["batches"]
+    return t
+
+
 def read_meta(version: str) -> dict:
     return json.loads((models_dir() / resolve(version) / "meta.json").read_text())
 

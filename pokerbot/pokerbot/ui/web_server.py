@@ -1,6 +1,9 @@
 """Small local web interface (standard library only): play page + dashboard.
 
     python -m pokerbot web --port 8000   ->  http://localhost:8000
+
+``App`` holds the game API. The same object runs inside the browser in the
+static-site build (see site_builder.py), so both share one code path.
 """
 from __future__ import annotations
 
@@ -10,7 +13,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from ..engine.actions import Action
-from .dashboard import build_data
 from .session import GameSession
 
 WEB = Path(__file__).with_name("web")
@@ -19,18 +21,54 @@ TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
 
 
 class App:
-    def __init__(self, default_opponents: list[str], seed: int | None = None) -> None:
+    """Game API shared by the local server and the browser build (Pyodide)."""
+
+    def __init__(self, default_opponents: list[str], seed: int | None = None, db=None) -> None:
         self.lock = threading.Lock()
         self.default = default_opponents
         self.seed = seed
+        self.db = db
         self.session: GameSession | None = None
 
     def new_session(self, opponents: list[str]) -> dict:
         if self.session:
             self.session.close()
-        self.session = GameSession(opponents, seed=self.seed)
+        self.session = GameSession(opponents, seed=self.seed, db=self.db)
         self.session.new_hand()
         return self.session.snapshot()
+
+    def handle(self, path: str, body: dict | None) -> tuple[int, dict]:
+        """GET when ``body`` is None, POST otherwise. Returns (status, JSON object)."""
+        with self.lock:
+            try:
+                if body is None:
+                    if path == "/api/state":
+                        return 200, (self.session.snapshot() if self.session else {"phase": "idle"})
+                    if path == "/api/dashboard":
+                        from .dashboard import build_data
+                        return 200, build_data()
+                    return 404, {"error": "not found"}
+                if path == "/api/new_session":
+                    return 200, self.new_session(body.get("opponents") or self.default)
+                if self.session is None:
+                    self.new_session(self.default)
+                s = self.session
+                if path == "/api/new_hand":
+                    s.new_hand()
+                    return 200, s.snapshot()
+                if path == "/api/act":
+                    t = body.get("type")
+                    action = {"fold": Action.fold, "check": Action.check, "call": Action.call}.get(t)
+                    s.act(action() if action else Action.raise_to(int(body.get("amount", 0))))
+                    return 200, s.snapshot()
+                return 404, {"error": "not found"}
+            except Exception as e:  # illegal action, not your turn...: shown on the page
+                return 400, {"error": str(e)}
+
+    def handle_json(self, path: str, body_json: str | None) -> str:
+        """String-in/string-out wrapper used from JavaScript in the browser build."""
+        code, obj = self.handle(path, None if body_json is None else json.loads(body_json or "{}"))
+        return json.dumps({"status": code, "body": obj})
 
 
 def make_handler(app: App):
@@ -49,6 +87,9 @@ def make_handler(app: App):
         def _json(self, obj, code: int = 200) -> None:
             self._send(code, json.dumps(obj).encode(), "application/json")
 
+        def _file(self, f: Path) -> None:
+            self._send(200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream"))
+
         def do_GET(self):
             path = self.path.split("?")[0]
             if path in ("/", "/play"):
@@ -59,11 +100,9 @@ def make_handler(app: App):
                 f = (WEB / path[len("/static/"):]).resolve()
                 if f.parent == WEB.resolve() and f.exists():
                     return self._file(f)
-            if path == "/api/state":
-                with app.lock:
-                    return self._json(app.session.snapshot() if app.session else {"phase": "idle"})
-            if path == "/api/dashboard":
-                return self._json(build_data())
+            if path.startswith("/api/"):
+                code, obj = app.handle(path, None)
+                return self._json(obj, code)
             self._json({"error": "not found"}, 404)
 
         def do_POST(self):
@@ -72,28 +111,8 @@ def make_handler(app: App):
                 body = json.loads(self.rfile.read(n) or b"{}")
             except json.JSONDecodeError:
                 return self._json({"error": "JSON invalide"}, 400)
-            try:
-                with app.lock:
-                    if self.path == "/api/new_session":
-                        return self._json(app.new_session(body.get("opponents") or app.default))
-                    if app.session is None:
-                        app.new_session(app.default)
-                    s = app.session
-                    if self.path == "/api/new_hand":
-                        s.new_hand()
-                        return self._json(s.snapshot())
-                    if self.path == "/api/act":
-                        t = body.get("type")
-                        action = {"fold": Action.fold, "check": Action.check, "call": Action.call}.get(t)
-                        action = action() if action else Action.raise_to(int(body.get("amount", 0)))
-                        s.act(action)
-                        return self._json(s.snapshot())
-            except Exception as e:  # report engine errors (illegal action...) to the page
-                return self._json({"error": str(e)}, 400)
-            self._json({"error": "not found"}, 404)
-
-        def _file(self, f: Path) -> None:
-            self._send(200, f.read_bytes(), TYPES.get(f.suffix, "application/octet-stream"))
+            code, obj = app.handle(self.path, body)
+            self._json(obj, code)
 
     return Handler
 

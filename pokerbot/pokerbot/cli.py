@@ -55,6 +55,15 @@ def cmd_train(a):
                   rm_plus=a.rm_plus, seed=a.seed)
 
 
+def cmd_train_6max(a):
+    from .training.registry import load_sixmax_tables, resolve, save_sixmax
+    from .training.sixmax import train_sixmax
+    v = resolve(a.version)
+    tables = load_sixmax_tables(a.source or v)
+    train_sixmax(tables, a.iterations, workers=a.workers, minutes=a.minutes)
+    print(f"stratégie 6-max enregistrée dans {save_sixmax(v, tables)}")
+
+
 def cmd_versions(a):
     from .training.registry import list_versions, read_meta, resolve
     try:
@@ -119,6 +128,19 @@ def cmd_dashboard(a):
     print(f"tableau de bord écrit dans {out}")
 
 
+def cmd_build_site(a):
+    from .ui.site_builder import build_site
+    out = build_site(a.out, a.version, a.pyodide_dir, title=a.title)
+    size = sum(f.stat().st_size for f in out.rglob("*") if f.is_file()) / 1e6
+    print(f"site statique écrit dans {out} ({size:.1f} Mo). À publier tel quel sur n'importe quel hébergeur.")
+
+
+def cmd_acpc(a):
+    from .evaluation.acpc import play_acpc
+    n = play_acpc(a.host, a.port, a.bot)
+    print(f"connexion fermée par le serveur après {n} mains")
+
+
 def cmd_slumbot(a):
     from .evaluation.slumbot import play_slumbot
     (m, lo, hi), _ = play_slumbot(a.hands, a.bot)
@@ -160,6 +182,14 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--rm-plus", action="store_true", help="regret-matching+ (CFR+) au lieu de Linear CFR")
     s.add_argument("--seed", type=int, default=0)
     s.set_defaults(func=cmd_train)
+
+    s = sub.add_parser("train-6max", help="entraîner la stratégie préflop 6-max d'une version")
+    s.add_argument("--version", default="best")
+    s.add_argument("--source", default=None, help="reprendre la stratégie 6-max d'une autre version")
+    s.add_argument("--iterations", type=int, default=5_000_000)
+    s.add_argument("--minutes", type=float, default=None)
+    s.add_argument("--workers", type=int, default=4)
+    s.set_defaults(func=cmd_train_6max)
 
     s = sub.add_parser("versions", help="lister les versions du bot")
     s.set_defaults(func=cmd_versions)
@@ -210,6 +240,20 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--out", default="data/dashboard.html")
     s.add_argument("--db", action="append", default=[], help="base(s) de mains supplémentaire(s)")
     s.set_defaults(func=cmd_dashboard)
+
+    s = sub.add_parser("build-site", help="site statique pour jouer contre le bot dans le navigateur")
+    s.add_argument("--out", default="site")
+    s.add_argument("--version", default="best")
+    s.add_argument("--pyodide-dir", default=None,
+                   help="dossier Pyodide 0.26.4 à embarquer (sinon chargé depuis le CDN jsdelivr)")
+    s.add_argument("--title", default="Poker contre le bot")
+    s.set_defaults(func=cmd_build_site)
+
+    s = sub.add_parser("acpc", help="jouer sur un serveur de compétition de bots (protocole ACPC)")
+    s.add_argument("host")
+    s.add_argument("port", type=int)
+    s.add_argument("--bot", default="bot:best")
+    s.set_defaults(func=cmd_acpc)
 
     s = sub.add_parser("slumbot", help="(expérimental) jouer contre Slumbot via son API")
     s.add_argument("--hands", type=int, default=1000)

@@ -7,20 +7,27 @@ from __future__ import annotations
 
 from typing import Sequence
 
-import eval7
-
 from .cards import DECK_SIZE, card_to_str
 
-_EVAL7_CARDS = [eval7.Card(card_to_str(c)) for c in range(DECK_SIZE)]
+try:  # fast C evaluator when installed
+    import eval7
+    HAS_EVAL7 = True
+except ImportError:  # browser (Pyodide) or minimal install: pure-Python fallback
+    from . import pyeval as eval7  # type: ignore[no-redef]
+    HAS_EVAL7 = False
 
-
-def to_eval7(cards: Sequence[int]) -> list:
-    return [_EVAL7_CARDS[c] for c in cards]
+# FAST_EVAL(list of CARD_OBJS[c]) works with either backend (hot loops use it directly)
+if HAS_EVAL7:
+    _EVAL7_CARDS = [eval7.Card(card_to_str(c)) for c in range(DECK_SIZE)]
+else:
+    _EVAL7_CARDS = list(range(DECK_SIZE))
+CARD_OBJS = _EVAL7_CARDS
+FAST_EVAL = eval7.evaluate
 
 
 def evaluate(cards: Sequence[int]) -> int:
     """Strength of the best 5-card hand among 5 to 7 cards (higher is better)."""
-    return eval7.evaluate([_EVAL7_CARDS[c] for c in cards])
+    return FAST_EVAL([_EVAL7_CARDS[c] for c in cards])
 
 
 def hand_category(value: int) -> str:

@@ -6,7 +6,6 @@ opponent-modeling and dashboard steps can compute VPIP/PFR/AF in SQL.
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -158,6 +157,8 @@ class HandStore:
     """Append-only SQLite store. Writes are buffered and committed in batches."""
 
     def __init__(self, path: str | Path, session: str = "", batch_size: int = 500) -> None:
+        import sqlite3  # imported here: the browser build runs without SQLite
+
         self.path = str(path)
         self.session = session
         self.batch_size = batch_size

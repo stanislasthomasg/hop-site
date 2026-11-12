@@ -21,7 +21,7 @@ STREET_NAMES_FR = ("préflop", "flop", "turn", "river", "abattage")
 
 class GameSession:
     def __init__(self, opponents: list[str], human_name: str = "you", seed: int | None = None,
-                 db: str | Path | None = None, stack: int = 10_000, sb: int = 50, bb: int = 100,
+                 db: str | Path | None | bool = None, stack: int = 10_000, sb: int = 50, bb: int = 100,
                  book_path: str | Path | None = None) -> None:
         self.rng = random.Random(seed)
         self.human_name = human_name
@@ -43,8 +43,9 @@ class GameSession:
         for agent in self.bots:
             if hasattr(agent, "book"):
                 agent.book = ModelBook(book_path)
-        self.store = HandStore(db or DATA_DIR / "human.db", session=f"human-vs-{'+'.join(opponents)}",
-                               batch_size=1)
+        # db=False: no SQLite (browser build); hands are then only kept in memory
+        self.store = None if db is False else HandStore(
+            db or DATA_DIR / "human.db", session=f"human-vs-{'+'.join(opponents)}", batch_size=1)
         self.button = self.rng.randrange(self.n)
         self.hand_no = 0
         self.state: HandState | None = None
@@ -108,8 +109,9 @@ class GameSession:
                 a.on_hand_end(seat, rec)
                 if hasattr(a, "book"):
                     a.book.save()
-        self.store.add(rec)
-        self.store.commit()
+        if self.store is not None:
+            self.store.add(rec)
+            self.store.commit()
         self.results.append(rec.payoffs[self.human_seat] / self.bb)
 
     def _describe(self, a) -> str:
@@ -153,7 +155,7 @@ class GameSession:
                             "min_raise_to": la.min_raise_to, "max_raise_to": la.max_raise_to,
                             "pot": st.pot, "current_bet": st.current_bet}
         if over and self.last_record:
-            out["history_text"] = format_hand(self.last_record, in_bb=True)
+            out["history_text"] = format_hand(self.last_record, in_bb=True, hero=self.human_seat)
             out["result_bb"] = self.last_record.payoffs[self.human_seat] / self.bb
         return out
 
@@ -196,4 +198,5 @@ class GameSession:
         raise ValueError(f"commande inconnue : {text!r} (tapez aide)")
 
     def close(self) -> None:
-        self.store.close()
+        if self.store is not None:
+            self.store.close()

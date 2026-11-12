@@ -15,9 +15,7 @@ import random
 import time
 from dataclasses import dataclass
 
-import eval7
-
-from ..engine.evaluator import _EVAL7_CARDS
+from ..engine.evaluator import _EVAL7_CARDS, FAST_EVAL
 from .abstract_game import AState
 from .abstraction import CardAbstraction
 
@@ -75,8 +73,8 @@ class Trainer:
             ])
         E = _EVAL7_CARDS
         b = [E[c] for c in board]
-        v0 = eval7.evaluate([E[c] for c in holes[0]] + b)
-        v1 = eval7.evaluate([E[c] for c in holes[1]] + b)
+        v0 = FAST_EVAL([E[c] for c in holes[0]] + b)
+        v1 = FAST_EVAL([E[c] for c in holes[1]] + b)
         sign = (v0 > v1) - (v0 < v1)
         return buckets, sign
 

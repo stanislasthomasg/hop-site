@@ -3,6 +3,11 @@ const SUITS = { c: "♣", d: "♦", h: "♥", s: "♠" };
 let snap = null;
 
 async function api(path, body) {
+  if (window.pokerApi) {                 // static site: the game runs in the browser (Pyodide)
+    const { status, body: data } = await window.pokerApi(path, body);
+    if (status !== 200) throw new Error(data.error || `erreur ${status}`);
+    return data;
+  }
   const res = await fetch(path, body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json();
@@ -118,4 +123,5 @@ const act = (a) => send("/api/act", a);
 
 $("start").addEventListener("click", () =>
   send("/api/new_session", { opponents: $("opponents").value.split(",") }));
-api("/api/state").then((s) => { snap = s; render(); }).catch(() => {});
+if (!window.PYODIDE_URL)  // local server: resume the current session; static site starts fresh
+  api("/api/state").then((s) => { snap = s; render(); }).catch(() => {});

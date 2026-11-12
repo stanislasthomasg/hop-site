@@ -7,10 +7,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Sequence
 
-import eval7
-
 from .cards import RANKS, card_rank, card_suit
-from .evaluator import _EVAL7_CARDS
+from .evaluator import _EVAL7_CARDS, FAST_EVAL
 
 _PREFLOP_FILE = Path(__file__).with_name("preflop_equity.json")
 
@@ -24,7 +22,7 @@ def equity_vs_random(hole: Sequence[int], board: Sequence[int], n_opponents: int
     deck = [c for c in range(52) if c not in dead]
     need_board = 5 - len(board)
     k = need_board + 2 * n_opponents
-    ev = eval7.evaluate
+    ev = FAST_EVAL
     E = _EVAL7_CARDS
     hero = [E[c] for c in hole]
     base = [E[c] for c in board]

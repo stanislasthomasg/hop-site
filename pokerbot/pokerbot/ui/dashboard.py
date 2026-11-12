@@ -3,7 +3,6 @@ self-contained HTML export."""
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
 from ..engine.history import HandStore
@@ -33,6 +32,8 @@ def _versions() -> list[dict]:
 
 
 def _evals() -> list[dict]:
+    import sqlite3
+
     f = models_dir() / "evaluations.db"
     if not f.exists():
         return []

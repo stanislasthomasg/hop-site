@@ -163,3 +163,35 @@ def test_duplicate_cash_conditions_pay_rake():
     res = duplicate_match(["abc", "abc"], deals=80, seed=5, workers=2, cash=True)
     total = sum(res.samples[0]) + sum(res.samples[1])
     assert total < 0                                   # the rake leaves the table
+
+
+def test_sixmax_game_and_bot_mapping():
+    from pokerbot.training.sixmax import PState, replay, train_sixmax
+    s = replay("offffc")                                # UTG opens, BB calls
+    assert s.terminal and s.utility(0, [9, 0, 0, 0, 0, 1]) == pytest.approx(550 - 27.5 - 250)
+    assert replay("ffffc").legal() == "ko"              # SB completes: BB option
+    t = Tables()
+    train_sixmax(t, 400, workers=1, batch=400, verbose=False)
+    six = average_strategy(t)
+    tiny = CardAbstraction(buckets=(2, 2, 2), samples=8).fit(50)
+    bot = LearnerBot({}, tiny, name="bot", seed=1, min_weight=0, sixmax=six)
+    others = [make_agent("abc", name=f"abc{i}", seed=i) for i in range(5)]
+    table = Table([bot] + others, seed=2)
+    list(table.play(200))
+    assert bot.stats["blueprint"] > 0                   # 6-max preflop strategy used
+
+
+def test_synthetic_preflop_for_heads_up_pots_in_6max():
+    from pokerbot.engine import parse_cards
+    tiny = CardAbstraction(buckets=(2, 2, 2), samples=8).fit(50)
+    bot = LearnerBot({}, tiny, seed=0)
+    holes = [parse_cards(h) for h in ("2c 3c", "4c 5c", "6c 7c", "8c 9c", "Tc Jc", "Qc Kc")]
+    s = HandState([10000] * 6, button=0, hole_cards=holes, board=parse_cards("2d 8d 9h Js 4s"))
+    # UTG (3) opens, everyone folds but the BB (2) who calls -> BB out of position
+    s.apply(Action.raise_to(250))
+    for _ in range(4):
+        s.apply(Action.fold())
+    s.apply(Action.call())
+    assert s.street == 1 and s.to_act == 2
+    a = bot.translate(s.view())
+    assert a is not None and a.history == "pc/" and a.to_act == 1   # BB = abstract OOP player

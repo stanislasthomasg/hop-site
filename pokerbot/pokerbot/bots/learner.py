@@ -34,6 +34,16 @@ def _cached_blueprint(version: str):
     return load_blueprint(version)
 
 
+@lru_cache(maxsize=4)
+def _cached_sixmax(version: str):
+    from ..training.registry import load_sixmax
+    return load_sixmax(version)
+
+
+SIX_NAMES = {"f": "se coucher", "k": "checker", "c": "suivre", "o": "ouvrir (2,5 bb)",
+             "t": "3-bet", "q": "4-bet", "a": "tapis"}
+
+
 def pseudo_harmonic(x: float, a: float, b: float) -> float:
     """Probability of mapping bet fraction x (a <= x <= b) to the smaller size a."""
     if b <= a:
@@ -44,9 +54,11 @@ def pseudo_harmonic(x: float, a: float, b: float) -> float:
 class LearnerBot(Agent):
     def __init__(self, blueprint: dict, abstraction: CardAbstraction, name: str | None = None,
                  seed: int | None = None, exploit: bool = True, book: ModelBook | None = None,
-                 version: str = "", exploit_scale: float = 1.0, min_weight: float = 20.0) -> None:
+                 version: str = "", exploit_scale: float = 1.0, min_weight: float = 20.0,
+                 sixmax: dict | None = None) -> None:
         super().__init__(name or (version or "learner"))
         self.bp = blueprint
+        self.six = sixmax
         self.abs = abstraction
         self.rng = random.Random(seed)
         self.exploit = exploit
@@ -68,21 +80,43 @@ class LearnerBot(Agent):
         v = resolve(version)
         bp, ab = _cached_blueprint(v)
         return cls(bp, ab, name=name or v, seed=seed, exploit=exploit,
-                   book=ModelBook(book_path), version=v)
+                   book=ModelBook(book_path), version=v, sixmax=_cached_sixmax(v))
 
     # ------------------------------------------------------------------ translation
     def translate(self, view: PlayerView) -> AState | None:
-        """Replay the real betting in the abstract game. None if it cannot be mapped."""
-        if view.n_players != 2:
+        """Replay the real betting in the heads-up abstract game. None if it cannot be mapped.
+
+        Heads-up tables map directly. At a 6-max table, a pot that reaches the flop
+        with exactly two players is mapped onto the heads-up tree: the player in
+        position becomes the button, and the preflop action is summarised by the
+        equivalent heads-up line (limped, raised by the player in or out of position,
+        3-bet by either), then the postflop betting is translated as usual."""
+        n = view.n_players
+        live = [i for i in range(n) if not view.folded[i]]
+        if n == 2:
+            ip, op = view.button, 1 - view.button
+            hist0 = None
+        elif len(live) == 2 and view.street >= 1:
+            order = sorted(live, key=lambda i: (i - view.button - 1) % n)
+            op, ip = order                    # first to act postflop is out of position
+            hist0 = self._synthetic_preflop(view, ip, op)
+            if hist0 is None:
+                return None
+        else:
             return None
-        button = view.button
-        ap = lambda seat: 0 if seat == button else 1  # noqa: E731
-        start_eff = min(view.starting_stacks[i] for i in range(2)) / view.bb
+        ap = {ip: 0, op: 1}
+        start = list(view.starting_stacks)
+        start_eff = min(start[ip], start[op]) / view.bb
         self._depth = self.abs.depth_index(start_eff)
         s = self.abs.new_state(self._depth)
-        start = list(view.starting_stacks)
-        contrib = [0, 0]
-        bets = [0, 0]
+        if hist0 is not None:
+            for ch in hist0:
+                if ch != "/":
+                    if ch not in s.legal():
+                        return None
+                    s._apply(ch)
+        contrib = [0] * n
+        bets = [0] * n
         street = 0
         for a in view.history:
             if a.kind.startswith("post"):
@@ -92,8 +126,12 @@ class LearnerBot(Agent):
                 continue
             if a.street != street:
                 street = a.street
-                bets = [0, 0]
-            if s.terminal or s.street != a.street or s.to_act != ap(a.seat):
+                bets = [0] * n
+            if hist0 is not None and a.street == 0:
+                contrib[a.seat] += a.added      # preflop already summarised
+                bets[a.seat] += a.added
+                continue
+            if s.terminal or s.street != a.street or s.to_act != ap.get(a.seat, -1):
                 return None
             legal = s.legal()
             if a.kind == "fold":
@@ -113,9 +151,58 @@ class LearnerBot(Agent):
             contrib[a.seat] += a.added
             bets[a.seat] += a.added
             s._apply(ch)
-        if s.terminal or s.street != view.street or s.to_act != ap(view.seat):
+        if s.terminal or s.street != view.street or s.to_act != ap.get(view.seat, -1):
             return None
         return s
+
+    @staticmethod
+    def _synthetic_preflop(view: PlayerView, ip: int, op: int) -> str | None:
+        """Heads-up preflop line equivalent to a multi-way preflop that ended heads-up."""
+        raisers = [a.seat for a in view.history if a.street == 0 and a.kind in ("bet", "raise")]
+        if not raisers:
+            return "ck/"
+        last = raisers[-1]
+        if last not in (ip, op):
+            return None
+        if len(raisers) == 1:
+            return "pc/" if last == ip else "cpc/"
+        if len(raisers) == 2:
+            return "cppc/" if last == ip else "hpc/"
+        return None                            # 4-bet pots are (nearly) all-in: rules suffice
+
+    # ------------------------------------------------------------------ 6-max preflop
+    SIX_SEAT = {"UTG": 0, "HJ": 1, "CO": 2, "BTN": 3, "SB": 4, "BB": 5}
+
+    def translate_sixmax(self, view: PlayerView):
+        """Map a real 6-max preflop to the 6-max abstract game (or None)."""
+        if self.six is None or view.n_players != 6 or view.street != 0:
+            return None
+        from ..engine.state import position_names
+        from ..training.sixmax import PState
+        labels = position_names(6)
+        seat_of = {i: self.SIX_SEAT[labels[(i - view.button) % 6]] for i in range(6)}
+        s = PState()
+        for a in view.history:
+            if a.kind.startswith("post"):
+                continue
+            if s.terminal or s.to_act != seat_of[a.seat]:
+                return None
+            legal = s.legal()
+            if a.kind == "fold":
+                ch = "f"
+            elif a.kind == "check":
+                ch = "k"
+            elif a.kind == "call":
+                ch = "c"
+            else:
+                big = a.all_in or a.amount >= 0.45 * view.starting_stacks[a.seat]
+                ch = "a" if big else {0: "o", 1: "t", 2: "q"}.get(s.nraises, "a")
+            if ch not in legal:
+                return None
+            s._apply(ch)
+        if s.terminal or s.to_act != seat_of[view.seat]:
+            return None
+        return s, seat_of[view.seat]
 
     def _map_raise(self, legal: str, frac: float, all_in: bool) -> str | None:
         sizes = [(BET_FRACTIONS[ch], ch) for ch in legal if ch in BET_FRACTIONS]
@@ -147,6 +234,8 @@ class LearnerBot(Agent):
         return self.abs.equity(view.hole, view.board)
 
     def act(self, view: PlayerView) -> Action:
+        if view.n_players == 6 and view.street == 0 and self.six is not None:
+            return self._act_sixmax(view)
         s = self.translate(view)
         entry, why = None, "coup hors de l'arbre abstrait (ligne inhabituelle ou multiway)"
         if s is not None:
@@ -173,6 +262,40 @@ class LearnerBot(Agent):
         action = self._to_real(view, ch)
         self.last_explanation = self._explain(view, bucket, s.history, acts, probs, new_probs,
                                               reasons, strength, ch, action, model)
+        return action
+
+    def _act_sixmax(self, view: PlayerView) -> Action:
+        r = self.translate_sixmax(view)
+        if r is None:
+            return self._fallback_act(view, "ligne préflop 6-max hors de l'arbre (limp, taille inhabituelle)")
+        s6, seat6 = r
+        from ..engine.equity import class_index
+        key = f"{seat6}|{class_index(view.hole)}|{s6.history}"
+        entry = self.six.get(key)
+        if entry is None or entry[0] != s6.legal() or entry[2] < self.min_weight:
+            return self._fallback_act(view, "situation préflop 6-max trop peu entraînée")
+        self.stats["blueprint"] += 1
+        acts, probs = entry[0], entry[1]
+        ch = acts[self._sample(probs)]
+        legal = view.legal
+        if ch == "f":
+            action = legal.check_or_fold()
+        elif ch in "kc":
+            action = legal.check_or_call()
+        elif ch == "a":
+            action = legal.all_in()
+        elif ch == "o":
+            mult = 3.0 if view.position in ("SB", "BB") else 2.5
+            action = legal.clamp_raise(int(mult * view.bb))
+        else:
+            action = legal.clamp_raise(int(view.current_bet * (3.25 if ch == "t" else 2.3)))
+        self.last_explanation = "\n".join([
+            f"[{self.version}] préflop 6-max, {view.position} : main [{cards_to_str(view.hole)}] "
+            f"-> classe {hand_class(view.hole)}",
+            f"Ligne abstraite 6-max : '{s6.history or '-'}'",
+            "Stratégie MCCFR 6-max : " + ", ".join(
+                f"{SIX_NAMES[a]} {100 * p_:.0f} %" for a, p_ in zip(acts, probs) if p_ >= 0.005),
+            f"Tirage : {SIX_NAMES[ch]} -> {action}"])
         return action
 
     def _sample(self, probs) -> int:
