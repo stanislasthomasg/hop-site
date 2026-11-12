@@ -16,11 +16,14 @@ CHEAP_RAISES = 2      # after this many raises only pot and all-in remain, then 
 
 class AState:
     __slots__ = ("street", "contrib", "bets", "to_act", "nraises", "last_raise",
-                 "acted", "history", "terminal", "folder", "stack", "cheap", "cap")
+                 "acted", "history", "terminal", "folder", "stack", "cheap", "cap",
+                 "rake_pct", "rake_cap")
 
     def __init__(self, stack: int = STACK, cheap_raises: int = CHEAP_RAISES,
-                 max_raises: int = MAX_RAISES) -> None:
+                 max_raises: int = MAX_RAISES, rake_pct: float = 0.0, rake_cap: int = 0) -> None:
         self.stack = stack
+        self.rake_pct = rake_pct
+        self.rake_cap = rake_cap
         self.cheap = cheap_raises
         self.cap = max_raises
         self.street = 0
@@ -37,6 +40,8 @@ class AState:
     def copy(self) -> "AState":
         s = AState.__new__(AState)
         s.stack = self.stack
+        s.rake_pct = self.rake_pct
+        s.rake_cap = self.rake_cap
         s.cheap = self.cheap
         s.cap = self.cap
         s.street = self.street
@@ -139,13 +144,22 @@ class AState:
         self.to_act = 1
 
     def utility(self, player: int, showdown_sign: int) -> float:
-        """Chips won by ``player``. ``showdown_sign``: +1 if player 0 wins, -1 if 1 wins, 0 tie."""
+        """Chips won by ``player``. ``showdown_sign``: +1 if player 0 wins, -1 if 1 wins, 0 tie.
+        With rake, the winner pays it on every pot that saw a flop (an all-in preflop
+        is a showdown, so the flop is dealt)."""
+        rake = 0.0
+        if self.rake_pct and (self.folder < 0 or self.street > 0):
+            rake = min(float(self.rake_cap), self.rake_pct * self.pot)
         if self.folder >= 0:
             # the winner collects what the folder put in; the folder loses it
-            won = self.contrib[self.folder] if self.folder != player else -self.contrib[player]
-            return float(won)
-        v = self.contrib[1 - player] * showdown_sign  # contributions are equal at showdown
-        return float(v if player == 0 else -v)
+            if self.folder == player:
+                return float(-self.contrib[player])
+            return self.contrib[self.folder] - rake
+        if showdown_sign == 0:
+            return -rake / 2
+        if (showdown_sign > 0) == (player == 0):
+            return self.contrib[1 - player] - rake  # contributions are equal at showdown
+        return float(-self.contrib[player])
 
 
 def replay(history: str, stack: int = STACK, cheap_raises: int = CHEAP_RAISES,

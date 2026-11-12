@@ -37,12 +37,14 @@ def _evals() -> list[dict]:
     if not f.exists():
         return []
     con = sqlite3.connect(f)
-    rows = con.execute("SELECT ts, version, level, opponent, hands, bb100, lo, hi, decision, curve "
-                       "FROM evals ORDER BY rowid").fetchall()
+    cols = [r[1] for r in con.execute("PRAGMA table_info(evals)")]
+    cond = "conditions" if "conditions" in cols else "'100bb sans rake'"
+    rows = con.execute("SELECT ts, version, level, opponent, hands, bb100, lo, hi, decision, curve, "
+                       f"{cond} FROM evals ORDER BY rowid").fetchall()
     con.close()
     return [{"ts": r[0], "version": r[1], "level": r[2], "opponent": r[3], "hands": r[4],
              "bb100": round(r[5], 2), "lo": round(r[6], 2), "hi": round(r[7], 2),
-             "decision": r[8], "curve": json.loads(r[9] or "[]")} for r in rows]
+             "decision": r[8], "curve": json.loads(r[9] or "[]"), "conditions": r[10]} for r in rows]
 
 
 def _players(dbs: list[Path], human: str = "you") -> tuple[list[dict], list[float]]:

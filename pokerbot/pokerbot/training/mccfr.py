@@ -93,16 +93,17 @@ class Trainer:
             self.touched_strat.setdefault(key, None)
         return reg, t.strat[key]
 
-    def traverse(self, s: AState, i: int, buckets, sign: int, rng: random.Random) -> float:
+    def traverse(self, s: AState, i: int, buckets, sign: int, rng: random.Random,
+                 prefix: str = "") -> float:
         if s.terminal:
             return s.utility(i, sign)
         p = s.to_act
         acts = s.legal()
-        key = f"{buckets[p][s.street]}:{s.history}"
+        key = f"{prefix}{buckets[p][s.street]}:{s.history}"
         reg, strat_sum = self._get(key, acts)
         sigma = regret_matching(reg)
         if p == i:
-            utils = [self.traverse(s.child(a), i, buckets, sign, rng) for a in acts]
+            utils = [self.traverse(s.child(a), i, buckets, sign, rng, prefix) for a in acts]
             node = sum(x * u for x, u in zip(sigma, utils))
             if key not in self.touched_regret:
                 self.touched_regret[key] = reg[:]
@@ -119,13 +120,17 @@ class Trainer:
             acc += sigma[k]
             if x < acc:
                 break
-        return self.traverse(s.child(acts[k]), i, buckets, sign, rng)
+        return self.traverse(s.child(acts[k]), i, buckets, sign, rng, prefix)
 
     def run(self, n: int, rng: random.Random) -> None:
+        ab = self.abs
+        depths = range(len(ab.depths_bb))
         for it in range(n):
             buckets, sign = self.deal(rng)
+            d = rng.choices(depths, ab.depth_weights)[0] if len(ab.depths_bb) > 1 else 0
+            prefix = ab.key_prefix(d)
             for i in (0, 1):
-                self.traverse(self.abs.new_state(), i, buckets, sign, rng)
+                self.traverse(ab.new_state(d), i, buckets, sign, rng, prefix)
 
     def deltas(self):
         """Changes since the trainer was created (for merging into the master)."""

@@ -37,6 +37,10 @@ class CardAbstraction:
     thresholds: list[list[float]] = field(default_factory=list)
     cheap_raises: int = 2      # raises per street before only pot / all-in remain
     max_raises: int = 4        # bets + raises per street
+    depths_bb: tuple = (100,)  # stack depths trained (one strategy per depth)
+    depth_weights: tuple = (1.0,)
+    rake_pct: float = 0.0      # cash-game rake the strategy is trained against
+    rake_cap_bb: float = 0.0
 
     def equity(self, hole, board) -> float:
         return equity_vs_random(hole, board, 1, self.samples, random.Random(_cards_seed(hole, board)))
@@ -63,13 +67,27 @@ class CardAbstraction:
 
     def to_dict(self) -> dict:
         return {"buckets": list(self.buckets), "samples": self.samples, "thresholds": self.thresholds,
-                "cheap_raises": self.cheap_raises, "max_raises": self.max_raises}
+                "cheap_raises": self.cheap_raises, "max_raises": self.max_raises,
+                "depths_bb": list(self.depths_bb), "depth_weights": list(self.depth_weights),
+                "rake_pct": self.rake_pct, "rake_cap_bb": self.rake_cap_bb}
 
     @staticmethod
     def from_dict(d: dict) -> "CardAbstraction":
         return CardAbstraction(tuple(d["buckets"]), d["samples"], d["thresholds"],
-                               d.get("cheap_raises", 2), d.get("max_raises", 4))
+                               d.get("cheap_raises", 2), d.get("max_raises", 4),
+                               tuple(d.get("depths_bb", (100,))), tuple(d.get("depth_weights", (1.0,))),
+                               d.get("rake_pct", 0.0), d.get("rake_cap_bb", 0.0))
 
-    def new_state(self):
-        from .abstract_game import STACK, AState
-        return AState(STACK, self.cheap_raises, self.max_raises)
+    def new_state(self, depth_index: int = 0):
+        from .abstract_game import BB, AState
+        return AState(int(self.depths_bb[depth_index] * BB), self.cheap_raises, self.max_raises,
+                      self.rake_pct, int(self.rake_cap_bb * BB))
+
+    def depth_index(self, effective_bb: float) -> int:
+        """Trained depth closest to the real effective stack (in log scale)."""
+        import math
+        return min(range(len(self.depths_bb)),
+                   key=lambda i: abs(math.log(max(effective_bb, 1) / self.depths_bb[i])))
+
+    def key_prefix(self, depth_index: int) -> str:
+        return f"{depth_index}|" if len(self.depths_bb) > 1 else ""

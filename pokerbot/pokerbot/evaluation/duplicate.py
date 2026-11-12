@@ -12,6 +12,7 @@ import random
 from dataclasses import dataclass, field
 
 from ..bots.registry import make_agent
+from ..engine.cash import CashRules, sample_stack_bb
 from ..engine.state import HandState
 from .stats import bb100_ci
 
@@ -47,9 +48,9 @@ def _names(specs: list[str]) -> list[str]:
     return names
 
 
-def _play(agents, names, holes, board, button) -> list[int]:
-    st = HandState([STACK] * len(agents), button=button, sb=SB, bb=BB,
-                   hole_cards=holes, board=board)
+def _play(agents, names, holes, board, button, stack=STACK, extra=None) -> list[int]:
+    st = HandState([stack] * len(agents), button=button, sb=SB, bb=BB,
+                   hole_cards=holes, board=board, **(extra or {}))
     for seat, a in enumerate(agents):
         a.table_names = names
         a.on_hand_start(seat, st.view(seat))
@@ -62,8 +63,12 @@ def _play(agents, names, holes, board, button) -> list[int]:
 
 
 def _run_chunk(args):
-    specs, seeds, agent_seed = args
+    specs, seeds, agent_seed, cash = args
     n = len(specs)
+    extra = {}
+    if cash:
+        rules = CashRules(sb=SB, bb=BB)
+        extra = {"rake_pct": rules.rake_pct, "rake_cap": rules.rake_cap(n)}
     names = _names(specs)
     agents = [make_agent(s, name=nm, seed=agent_seed + i) for i, (s, nm) in enumerate(zip(specs, names))]
     out = [[] for _ in range(n)]
@@ -73,6 +78,7 @@ def _run_chunk(args):
         holes = [deck[2 * i: 2 * i + 2] for i in range(n)]
         board = deck[2 * n:]
         button = seed % n
+        stack = int(sample_stack_bb(rng) * BB) if cash else STACK
         totals = [0] * n
         for r in range(n):
             # agent i sits in seat (i + r) % n
@@ -80,7 +86,7 @@ def _run_chunk(args):
             for i in range(n):
                 seating[(i + r) % n] = i
             pay = _play([agents[i] for i in seating], [names[i] for i in seating],
-                        holes, board, button)
+                        holes, board, button, stack, extra)
             for seat, i in enumerate(seating):
                 totals[i] += pay[seat]
         for i in range(n):
@@ -93,12 +99,14 @@ def _run_chunk(args):
     return out, fb
 
 
-def duplicate_match(specs: list[str], deals: int, seed: int = 0, workers: int = 4) -> MatchResult:
-    """Play ``deals`` duplicate deals between agents built from ``specs``."""
+def duplicate_match(specs: list[str], deals: int, seed: int = 0, workers: int = 4,
+                    cash: bool = False) -> MatchResult:
+    """Play ``deals`` duplicate deals between agents built from ``specs``.
+    ``cash=True``: cash-game conditions (rake, stack depth drawn per deal from 40 to 250 bb)."""
     rng = random.Random(seed)
     seeds = [rng.getrandbits(60) for _ in range(deals)]
     workers = max(1, min(workers, deals))
-    chunks = [(specs, seeds[i::workers], seed * 1000 + i) for i in range(workers)]
+    chunks = [(specs, seeds[i::workers], seed * 1000 + i, cash) for i in range(workers)]
     if workers == 1:
         results = [_run_chunk(chunks[0])]
     else:

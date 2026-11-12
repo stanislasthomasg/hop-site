@@ -80,7 +80,8 @@ def format_hand(rec: HandRecord, in_bb: bool = False, hero: int | None = None) -
         for s, won in p["shares"].items():
             out.append(f"{name[s]} collected {c(won)} from {label}")
     out.append("*** SUMMARY ***")
-    out.append(f"Total pot {c(rec.total_pot)}"
+    out.append(f"Total pot {c(rec.total_pot + rec.rake)}"
+               + (f" | Rake {c(rec.rake)}" if rec.rake else "")
                + (f" | Board [{cards_to_str(rec.board)}]" if rec.board else ""))
     for s in range(rec.n_players):
         net = rec.payoffs[s]

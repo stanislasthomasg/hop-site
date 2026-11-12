@@ -33,13 +33,16 @@ class GameSession:
             if spec in opponents[:i]:
                 name = f"{spec}#{i}"
             agent = make_agent(spec, name=name, seed=self.rng.getrandbits(32))
-            if hasattr(agent, "book") and book_path:
-                from ..bots.exploit import ModelBook
-                agent.book = ModelBook(book_path)
             self.bots.append(agent)
         self.names = [human_name] + [b.name for b in self.bots]
         self.stack, self.sb, self.bb = stack, sb, bb
         DATA_DIR.mkdir(exist_ok=True)
+        if book_path is None:
+            book_path = DATA_DIR / "opponents.json"   # the bot remembers you between sessions
+        from ..bots.exploit import ModelBook
+        for agent in self.bots:
+            if hasattr(agent, "book"):
+                agent.book = ModelBook(book_path)
         self.store = HandStore(db or DATA_DIR / "human.db", session=f"human-vs-{'+'.join(opponents)}",
                                batch_size=1)
         self.button = self.rng.randrange(self.n)

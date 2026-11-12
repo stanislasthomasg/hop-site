@@ -44,6 +44,9 @@ def _db() -> sqlite3.Connection:
     con.execute("""CREATE TABLE IF NOT EXISTS evals (
         ts TEXT, version TEXT, level INTEGER, opponent TEXT, deals INTEGER, hands INTEGER,
         bb100 REAL, lo REAL, hi REAL, decision TEXT, curve TEXT)""")
+    cols = [r[1] for r in con.execute("PRAGMA table_info(evals)")]
+    if "conditions" not in cols:
+        con.execute("ALTER TABLE evals ADD COLUMN conditions TEXT DEFAULT '100bb sans rake'")
     return con
 
 
@@ -83,16 +86,21 @@ class LevelResult:
     per_opponent: list[tuple[str, float, float, float]]
 
 
+CASH_LABEL = "cash : rake 5 %, tapis 40-250 bb"
+
+
 def evaluate_level(version: str, level: int, hands: int, workers: int = 4, seed: int = 0,
-                   verbose: bool = True) -> LevelResult | None:
+                   verbose: bool = True, cash: bool = True) -> LevelResult | None:
     opps = level_opponents(level, version)
     if not opps:
         return None
     deals = max(1, -(-hands // (2 * len(opps))))   # round up: never fall short of `hands`
     all_samples, per = [], []
+    cond = CASH_LABEL if cash else "100bb sans rake"
     con = _db()
     for k, opp in enumerate(opps):
-        res = duplicate_match([f"bot:{version}", opp], deals, seed=seed + 7919 * level + k, workers=workers)
+        res = duplicate_match([f"bot:{version}", opp], deals, seed=seed + 7919 * level + k,
+                              workers=workers, cash=cash)
         m, lo, hi = res.bb100(0)
         per.append((opp, m, lo, hi))
         all_samples.extend(res.samples[0])
@@ -100,23 +108,23 @@ def evaluate_level(version: str, level: int, hands: int, workers: int = 4, seed:
             fb = next(iter(res.fallback_rate.values()), 0.0)
             print(f"    vs {opp:22s} {m:+8.1f} bb/100  [{lo:+.1f}, {hi:+.1f}]  "
                   f"({res.hands:,} mains, décisions hors stratégie CFR {100 * fb:.0f} %)", flush=True)
-        con.execute("INSERT INTO evals VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        con.execute("INSERT INTO evals VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     (time.strftime("%Y-%m-%d %H:%M:%S"), version, level, opp, deals, res.hands,
-                     m, lo, hi, "", json.dumps(_curve(res.samples[0]))))
+                     m, lo, hi, "", json.dumps(_curve(res.samples[0])), cond))
     con.commit()
     m, lo, hi = bb100_ci(all_samples, hands_per_sample=2)
     total = 2 * len(all_samples)
     decision = "promote" if lo > 0 else ("demote" if hi < 0 else "stay")
-    con.execute("INSERT INTO evals VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+    con.execute("INSERT INTO evals VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (time.strftime("%Y-%m-%d %H:%M:%S"), version, level, "ALL", total // 2, total,
-                 m, lo, hi, decision, json.dumps(_curve(all_samples))))
+                 m, lo, hi, decision, json.dumps(_curve(all_samples)), cond))
     con.commit()
     con.close()
     return LevelResult(level, m, lo, hi, total, decision, per)
 
 
 def climb(version: str, hands: int = 50_000, workers: int = 4, verbose: bool = True,
-          min_hands: int = 50_000) -> list[LevelResult]:
+          min_hands: int = 50_000, cash: bool = True) -> list[LevelResult]:
     """Evaluate ``version`` at its current level and move it up/down as earned.
     Keeps climbing while it keeps getting promoted."""
     version = resolve(version)
@@ -127,7 +135,7 @@ def climb(version: str, hands: int = 50_000, workers: int = 4, verbose: bool = T
         level = entry["level"]
         if verbose:
             print(f"[{version}] niveau {level} : {LEVELS[level][0]}", flush=True)
-        r = evaluate_level(version, level, hands, workers, verbose=verbose)
+        r = evaluate_level(version, level, hands, workers, verbose=verbose, cash=cash)
         if r is None:
             if verbose:
                 print("    (pas encore d'adversaire à ce niveau : niveau sauté)")

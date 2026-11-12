@@ -78,7 +78,7 @@ def cmd_set_best(a):
 def cmd_match(a):
     from .evaluation.duplicate import duplicate_match
     t0 = time.time()
-    res = duplicate_match(a.agents.split(","), a.deals, seed=a.seed, workers=a.workers)
+    res = duplicate_match(a.agents.split(","), a.deals, seed=a.seed, workers=a.workers, cash=a.cash)
     print(res.summary())
     if res.fallback_rate:
         print("  décisions hors stratégie CFR : " +
@@ -88,7 +88,7 @@ def cmd_match(a):
 
 def cmd_ladder(a):
     from .evaluation.ladder import climb
-    climb(a.bot, hands=a.hands, workers=a.workers, min_hands=a.min_hands)
+    climb(a.bot, hands=a.hands, workers=a.workers, min_hands=a.min_hands, cash=not a.no_cash)
 
 
 def cmd_learn(a):
@@ -100,7 +100,7 @@ def cmd_learn(a):
         print(f"=== Cycle {r + 1}/{a.rounds} : entraînement depuis {parent or 'zéro'} ===")
         v = train_version(a.iterations, workers=a.workers, parent=parent, minutes=a.minutes)
         print(f"=== Cycle {r + 1}/{a.rounds} : échelle de niveaux pour {v} ===")
-        climb(v, hands=a.hands, workers=a.workers, min_hands=a.min_hands)
+        climb(v, hands=a.hands, workers=a.workers, min_hands=a.min_hands, cash=not a.no_cash)
 
 
 def cmd_play(a):
@@ -173,6 +173,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--deals", type=int, default=5000)
     s.add_argument("--workers", type=int, default=4)
     s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--cash", action="store_true", help="conditions cash : rake + tapis variables")
     s.set_defaults(func=cmd_match)
 
     s = sub.add_parser("ladder", help="évaluer une version sur l'échelle de niveaux")
@@ -180,6 +181,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--hands", type=int, default=50_000, help="mains par niveau")
     s.add_argument("--min-hands", type=int, default=50_000)
     s.add_argument("--workers", type=int, default=4)
+    s.add_argument("--no-cash", action="store_true", help="100 bb sans rake (ancien protocole)")
     s.set_defaults(func=cmd_ladder)
 
     s = sub.add_parser("learn", help="boucle continue : entraîner puis évaluer, N cycles")
@@ -189,6 +191,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--hands", type=int, default=50_000)
     s.add_argument("--min-hands", type=int, default=50_000)
     s.add_argument("--workers", type=int, default=4)
+    s.add_argument("--no-cash", action="store_true")
     s.set_defaults(func=cmd_learn)
 
     s = sub.add_parser("play", help="jouer contre un bot dans le terminal")

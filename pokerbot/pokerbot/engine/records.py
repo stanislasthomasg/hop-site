@@ -47,6 +47,7 @@ class HandRecord:
     payoffs: list[int]                     # net chips won/lost per seat
     final_street: int
     seed: int | None = None
+    rake: int = 0
     played_at: str = ""
     table: str = ""
     extra: dict = field(default_factory=dict)

@@ -114,3 +114,52 @@ def test_duplicate_is_zero_sum_and_symmetric():
     assert len(res.samples[0]) == 60
     for a, b in zip(res.samples[0], res.samples[1]):
         assert a == pytest.approx(-b)
+
+
+def test_rake_in_abstract_utility():
+    s = AState(10_000, rake_pct=0.05, rake_cap=100)
+    s = s.child("p").child("f")                        # preflop fold: no rake
+    assert s.utility(0, 0) == 100
+    s = AState(10_000, rake_pct=0.05, rake_cap=100)
+    for ch in "ck" + "kk" + "kk" + "kk":
+        s = s.child(ch)
+    assert s.terminal
+    assert s.utility(0, +1) == 100 - 10 and s.utility(1, +1) == -100   # 5% of 200
+    assert s.utility(0, 0) == -5                        # split pot: rake shared
+
+
+def test_depth_selection():
+    ab = CardAbstraction(depths_bb=(50, 100, 200))
+    assert [ab.depth_index(x) for x in (30, 60, 80, 100, 140, 160, 400)] == [0, 0, 1, 1, 1, 2, 2]
+    assert ab.new_state(2).stack == 20_000 and ab.key_prefix(1) == "1|"
+    assert CardAbstraction().key_prefix(0) == ""        # single-depth versions keep old keys
+
+
+def test_size_specific_fold_tracking_and_tilt():
+    from pokerbot.engine import parse_cards
+    m = OpponentModel("villain")
+    # villain folds to every half-pot flop bet, never to pot-sized ones
+    for i in range(120):
+        s = HandState([10000, 10000], button=0, hole_cards=[parse_cards("Ah Kh"), parse_cards("7c 2d")],
+                      board=parse_cards("2s 8d 9h Js 4c"))
+        s.apply(Action.call()); s.apply(Action.check())              # limp, check
+        s.apply(Action.check())                                      # BB (villain) checks the flop
+        size = int(0.5 * s.pot) if i % 2 == 0 else s.pot
+        s.apply(Action.raise_to(size))                               # hero bets
+        s.apply(Action.fold() if i % 2 == 0 else Action.call())
+        while not s.is_over:
+            s.apply(Action.check())                                  # check it down
+        m.update(1, s.to_record())
+    assert m.f["fvb1small"].opps == 60 and m.f["fvb1small"].hits == 60
+    assert m.f["fvb1big"].opps == 60 and m.f["fvb1big"].hits == 0
+    probs, why = adjust("khpa", [0.7, 0.1, 0.1, 0.1], m, strength=0.2, facing_bet=False,
+                        preflop=False, street=1)
+    assert probs[1] > probs[2]                 # bluff with the small size he folds to
+    assert any("petites mises" in w for w in why)
+    assert m.profile_label()
+
+
+def test_duplicate_cash_conditions_pay_rake():
+    res = duplicate_match(["abc", "abc"], deals=80, seed=5, workers=2, cash=True)
+    total = sum(res.samples[0]) + sum(res.samples[1])
+    assert total < 0                                   # the rake leaves the table

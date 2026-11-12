@@ -211,3 +211,45 @@ def test_table_is_reproducible_with_seed():
         t = Table([RandomBot(seed=1), RandomBot(seed=2)], seed=42)
         return [r.payoffs for r in t.play(200)]
     assert run() == run()
+
+
+# ---------------------------------------------------------------- cash game
+def test_rake_taken_only_after_flop():
+    from pokerbot.engine.cash import CashRules
+    rules = CashRules()
+    s = HandState([10000, 10000], button=0, hole_cards=[[0, 1], [2, 3]], board=[10, 20, 30, 40, 50],
+                  **rules.state_kwargs(2))
+    s.apply(Action.raise_to(300)); s.apply(Action.fold())
+    assert s.rake == 0 and sum(s.payoffs) == 0         # no flop, no drop
+    s = make([10000, 10000], ["Ah Ad", "7c 2d"], BOARD_DRY)
+    s.rake_pct, s.rake_cap = 0.05, 100
+    play(s, "r300", "c", "x", "x", "x", "x", "x", "x")
+    assert s.rake == 30 and s.payoffs == [270, -300]   # 5% of 600
+    s = make([10000, 10000], ["Ah Ad", "7c 2d"], BOARD_DRY)
+    s.rake_pct, s.rake_cap = 0.05, 100
+    play(s, "a", "c")
+    assert s.rake == 100 and s.payoffs == [9900, -10000]   # capped at 1 bb
+
+
+def test_rake_split_across_side_pots_conserves_chips():
+    s = make([10000, 1000, 3000, 6000], ["7h 3d", "As Ah", "Ks Kh", "Qc Qd"], BOARD_DRY, button=0)
+    s.rake_pct, s.rake_cap = 0.05, 300
+    play(s, "a", "c", "c", "c")
+    rec = s.to_record()
+    assert s.rake == 300 and sum(s.payoffs) == -300
+    assert rec.total_pot + rec.rake == 16000
+
+
+def test_cash_table_stacks_carry_over_and_rebuy():
+    from pokerbot.engine.cash import CashRules
+    rules = CashRules(min_buyin_bb=40, max_buyin_bb=100)
+    t = Table([RandomBot(seed=1), RandomBot(seed=2), RandomBot(seed=3)], seed=4, cash=rules,
+              buyins_bb=[100, 40, 250])
+    assert t.stacks == [10000, 4000, 25000]
+    total_rake = 0
+    for rec in t.play(400):
+        total_rake += rec.rake
+    assert total_rake > 0
+    # chips on the table = buy-ins - rake
+    invested = sum((b - 1) * 10000 for b in t.buyins) + 10000 + 4000 + 25000
+    assert sum(t.stacks) == invested - total_rake

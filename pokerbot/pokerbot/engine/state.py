@@ -100,6 +100,8 @@ class HandState:
         board: Sequence[int] | None = None,
         hand_no: int = 0,
         seed: int | None = None,
+        rake_pct: float = 0.0,
+        rake_cap: int = 0,
     ) -> None:
         n = len(stacks)
         if not 2 <= n <= 10:
@@ -116,6 +118,9 @@ class HandState:
         self.ante = ante
         self.hand_no = hand_no
         self.seed = seed
+        self.rake_pct = rake_pct
+        self.rake_cap = rake_cap
+        self.rake = 0
         self.starting_stacks = list(stacks)
 
         # --- cards ---------------------------------------------------------------
@@ -348,6 +353,7 @@ class HandState:
         contributions = [p.total_bet for p in self.players]
         folded = [p.folded for p in self.players]
         pots = compute_pots(contributions, folded)
+        self.rake = self._take_rake(pots)
         if showdown:
             strengths = {p.seat: evaluate(list(p.hole) + self.board) for p in live}
             self._showdown = sorted(strengths)
@@ -358,8 +364,8 @@ class HandState:
         for p in self.players:
             p.stack += payouts[p.seat]
         self.payoffs = [p.stack - s for p, s in zip(self.players, self.starting_stacks)]
-        if sum(self.payoffs) != 0:  # chip conservation (no rake)
-            raise AssertionError(f"chips not conserved: {self.payoffs}")
+        if sum(self.payoffs) != -self.rake:  # chip conservation: only the rake leaves the table
+            raise AssertionError(f"chips not conserved: {self.payoffs}, rake {self.rake}")
         self._pot_awards = [
             {"amount": a.amount, "eligible": list(pots[a.pot_index].eligible),
              "winners": list(a.winners), "shares": dict(a.shares)}
@@ -368,6 +374,26 @@ class HandState:
         self.street = Street.SHOWDOWN if showdown else self.street
         self.to_act = -1
         self.is_over = True
+
+    def _take_rake(self, pots) -> int:
+        """Cash-game rake: ``rake_pct`` of the pot, capped at ``rake_cap`` chips, and only
+        when the flop was dealt ("no flop, no drop"). Taken from each pot in proportion,
+        the rounding remainder from the main pot."""
+        if self.rake_pct <= 0 or len(self.board) < 3:
+            return 0
+        total = sum(p.amount for p in pots)
+        rake = int(total * self.rake_pct)
+        if self.rake_cap:
+            rake = min(rake, self.rake_cap)
+        if rake <= 0:
+            return 0
+        taken = 0
+        for p in pots[1:]:
+            part = rake * p.amount // total
+            p.amount -= part
+            taken += part
+        pots[0].amount -= rake - taken
+        return rake
 
     # ------------------------------------------------------------------ output
     def to_record(self, names: Sequence[str] | None = None, table: str = "") -> HandRecord:
@@ -394,6 +420,7 @@ class HandState:
             payoffs=list(self.payoffs),
             final_street=int(self.street),
             seed=self.seed,
+            rake=self.rake,
             played_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             table=table,
         )

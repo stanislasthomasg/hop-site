@@ -135,7 +135,8 @@ function render(d) {
   showCurve();
 
   table(el("evals"), [["ts", "Date"], ["version", "Version"], ["level", "Niveau"], ["opponent", "Adversaire"],
-    ["hands", "Mains"], ["bb100", "bb/100"], ["lo", "IC bas"], ["hi", "IC haut"], ["decision", "Décision"]],
+    ["hands", "Mains"], ["bb100", "bb/100"], ["lo", "IC bas"], ["hi", "IC haut"], ["decision", "Décision"],
+    ["conditions", "Conditions"]],
     d.evals.slice().reverse().map((e) => ({ ...e, opponent: e.opponent === "ALL" ? "TOUS" : e.opponent,
                                             decision: DECISIONS[e.decision] ?? e.decision })));
 

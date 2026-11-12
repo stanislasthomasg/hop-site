@@ -55,6 +55,7 @@ class LearnerBot(Agent):
         self.version = version
         self.fallback = ABC(seed=seed)
         self.table_names: list[str] = []
+        self._depth = 0
         self.last_explanation = ""
         self.stats = {"blueprint": 0, "fallback": 0}
         self.min_weight = min_weight
@@ -76,7 +77,9 @@ class LearnerBot(Agent):
             return None
         button = view.button
         ap = lambda seat: 0 if seat == button else 1  # noqa: E731
-        s = self.abs.new_state()
+        start_eff = min(view.starting_stacks[i] for i in range(2)) / view.bb
+        self._depth = self.abs.depth_index(start_eff)
+        s = self.abs.new_state(self._depth)
         start = list(view.starting_stacks)
         contrib = [0, 0]
         bets = [0, 0]
@@ -148,7 +151,7 @@ class LearnerBot(Agent):
         entry, why = None, "coup hors de l'arbre abstrait (ligne inhabituelle ou multiway)"
         if s is not None:
             bucket = self.abs.bucket(view.hole, view.board)
-            key = f"{bucket}:{s.history}"
+            key = f"{self.abs.key_prefix(self._depth)}{bucket}:{s.history}"
             entry = self.bp.get(key)
             why = "situation jamais rencontrée à l'entraînement"
             if entry is not None and entry[0] != s.legal():
@@ -164,7 +167,7 @@ class LearnerBot(Agent):
         model = self._opponent_model(view)
         new_probs, reasons = adjust(acts, list(probs), model, strength,
                                     facing_bet=view.to_call > 0, preflop=not view.board,
-                                    scale=self.exploit_scale)
+                                    scale=self.exploit_scale, street=int(view.street))
         k = self._sample(new_probs)
         ch = acts[k]
         action = self._to_real(view, ch)
@@ -215,7 +218,8 @@ class LearnerBot(Agent):
                  "Stratégie CFR (proche GTO) : " + ", ".join(
                      f"{ACTION_NAMES[a]} {100 * p:.0f} %" for a, p in zip(acts, probs) if p >= 0.005)]
         if reasons:
-            lines.append(f"Ajustement contre {model.name} ({model.hands} mains observées) : " + " ; ".join(reasons))
+            lines.append(f"Ajustement contre {model.name} ({model.hands} mains observées, profil : "
+                         f"{model.profile_label()}) : " + " ; ".join(reasons))
             lines.append("Après ajustement : " + ", ".join(
                 f"{ACTION_NAMES[a]} {100 * p:.0f} %" for a, p in zip(acts, new_probs) if p >= 0.005))
         elif model is not None:
