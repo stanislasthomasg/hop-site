@@ -7,8 +7,10 @@ Abstract game: six players at 100 bb, preflop only, standard sizes
   all-in       'a'
 Limping is only allowed for the small blind (complete), as in most solved
 cash-game preflop strategies. When two or more players see the flop, the hand
-is scored as if checked down on a randomly dealt board (equity realisation is
-approximated by raw equity, a known simplification), and the rake is taken.
+is scored on a randomly dealt board, with equity-realisation factors: the
+player in position after the flop realises ~105% of his equity, the others ~85%
+(without them, raw equity makes out-of-position calls far too attractive: the
+big blind defended 94% against a button open). The rake is taken.
 
 Seats are indexed in preflop acting order: 0 UTG, 1 HJ, 2 CO, 3 BTN, 4 SB, 5 BB.
 Infoset key: "<seat>|<hand class>|<history>".
@@ -27,6 +29,12 @@ POSITIONS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"]
 N = 6
 SB, BB, STACK = 50, 100, 10_000
 RAKE_PCT, RAKE_CAP = 0.05, 300
+REALIZE_IP, REALIZE_OOP = 1.05, 0.85     # equity realisation after the flop
+
+
+def postflop_order(seat: int) -> int:
+    """Acting order after the flop: SB 0, BB 1, UTG 2, HJ 3, CO 4, BTN 5 (last = in position)."""
+    return (seat - 4) % N
 
 
 class PState:
@@ -116,7 +124,9 @@ class PState:
         best = max(values[i] for i in live)
         winners = [i for i in live if values[i] == best]
         if player in winners:
-            return (pot - rake) / len(winners) - self.bets[player]
+            ip = max(live, key=postflop_order)
+            realize = REALIZE_IP if player == ip else REALIZE_OOP
+            return (pot - rake) / len(winners) * realize - self.bets[player]
         return float(-self.bets[player])
 
 

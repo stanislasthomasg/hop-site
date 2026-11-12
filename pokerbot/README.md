@@ -6,10 +6,14 @@ Projet de recherche **en simulation uniquement**. Il ne se connecte à aucun sit
 |---|---|---|
 | 1 | Moteur NLHE (heads-up et 6-max) : side pots, SQLite, historique texte | ✅ |
 | 2 | Adversaires low stakes : aléatoire, calling station, nit, maniac, ABC | ✅ |
-| 3 | Bot MCCFR (Linear CFR) + abstraction + exploitation + versions | ✅ (heads-up) |
-| 4 | Échelle de niveaux, évaluation duplicate avec IC 95 % | ✅ (Slumbot : expérimental) |
+| 3 | Bot MCCFR (Linear CFR) + abstraction + exploitation + versions | ✅ |
+| 4 | Échelle de niveaux, évaluation duplicate avec IC 95 % | ✅ |
 | 5 | Jeu dans le terminal et sur le web avec explications, tableau de bord | ✅ |
-| v2 | Deep CFR, résolution de sous-jeux en temps réel, MCCFR 6-max | à faire |
+| Cash | Rake, tapis qui persistent, profondeurs 50/100/200 bb, évaluation en conditions cash | ✅ |
+| 6-max | Stratégie préflop MCCFR à 6 joueurs + stratégie HU pour les pots à deux | ✅ |
+| Recherche | Résolution de la river en temps réel (ranges reconstruites + CFR+) | ✅ |
+| Diffusion | Site web statique (bot dans le navigateur), client ACPC, client Slumbot | ✅ |
+| v2 | Deep CFR, recherche sur flop/turn, MCCFR 6-max postflop | à faire |
 
 L'architecture détaillée est dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -18,7 +22,7 @@ L'architecture détaillée est dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ```bash
 cd pokerbot
 pip install -e ".[dev]"          # eval7, numpy, pytest ; Python 3.10+
-python -m pytest -q              # 54 tests
+python -m pytest -q              # 70 tests
 ```
 
 ## 1. Entraîner le bot
@@ -101,6 +105,54 @@ Le tableau de bord affiche :
 - vos gains ;
 - le VPIP, le PFR, le 3-bet, l'AF, le c-bet, le fold to c-bet et le WTSD de chaque joueur.
 
+## Cash game
+
+- **Rake** : 5 % du pot, plafonné à 1 bb en heads-up, 2 bb à 3-4 joueurs et 3 bb à 5-6 joueurs. Pas de rake si le flop n'est pas vu (« no flop, no drop »). Les jetons restent conservés : seul le rake quitte la table.
+- **Tapis qui persistent** : `Table(..., cash=CashRules())` garde les tapis d'une main à l'autre, avec recave quand un joueur est à sec (ou recave automatique en dessous d'un seuil).
+- **Profondeurs** : depuis v3, le bot apprend trois stratégies dans le même entraînement (50, 100 et 200 bb). En partie, il choisit celle qui est la plus proche du tapis effectif.
+- **Évaluation en conditions cash** : `ladder` et `match --cash` appliquent le rake et tirent un tapis entre 40 et 250 bb à chaque donne.
+
+## 6-max
+
+```bash
+python -m pokerbot train-6max --version best --minutes 60     # MCCFR préflop à 6 joueurs
+python -m pokerbot play --opponents bot:best,abc,nit,maniac,station
+```
+
+- **Préflop** : stratégie MCCFR à 6 joueurs avec open 2,5 bb, 3-bet, 4-bet et tapis.
+- **Pot à deux après le flop** : le bot réutilise sa stratégie heads-up, en reconstruisant la ligne préflop équivalente.
+- **Pot à 3 joueurs ou plus après le flop** : règles ABC, ajustées contre chaque adversaire.
+- **Limite** : au préflop, le MCCFR 6-max suppose que le coup va jusqu'à l'abattage une fois le flop vu. Il ignore donc qu'une main jouée hors de position réalise moins bien son équité.
+
+## Recherche en temps réel (river)
+
+Avec `bot:best+search`, que le bot active automatiquement contre un humain, chaque décision river se déroule ainsi :
+1. Le bot reconstruit les ranges des deux joueurs à partir des actions de la main.
+2. Il résout le sous-jeu river en CFR+ sur les vraies combinaisons de cartes, blocages et rake compris.
+3. Il joue la stratégie obtenue pour sa main.
+
+Cela prend 1 à 2 s par décision, ce qui explique pourquoi l'échelle de niveaux tourne sans recherche par défaut.
+
+## Mettre le bot sur un site web
+
+```bash
+python -m pokerbot build-site --out site                     # Pyodide chargé depuis le CDN jsdelivr
+python -m pokerbot build-site --out site --pyodide-dir node_modules/pyodide   # tout embarqué (~15 Mo)
+```
+
+Le dossier `site/` est un site **statique** : le bot tourne entièrement dans le navigateur du visiteur, grâce à Python compilé en WebAssembly (Pyodide). Il n'y a ni serveur ni compte, et aucune donnée ne quitte la machine. Le bot se souvient du style de jeu de chaque visiteur, dans son navigateur.
+
+Il se publie tel quel sur GitHub Pages, Netlify ou dans un sous-dossier d'un site existant, par exemple `/poker/`. Pour récupérer Pyodide en local : `npm pack pyodide@0.26.4`, puis décompresser l'archive.
+
+## Plateformes pour bots
+
+Ce sont des endroits prévus pour que des bots s'affrontent (simulation, recherche, compétition) :
+
+- **Compétitions ACPC et serveurs « dealer »** : `python -m pokerbot acpc <hôte> <port> --bot bot:best`. Protocole ACPC 2.0, heads-up no-limit, tapis de 200 bb.
+- **Slumbot** : `python -m pokerbot slumbot --hands 1000`. Ce client n'a pas été testé faute d'accès réseau à slumbot.com.
+
+Le bot ne se connecte pas aux sites de poker en argent réel. Leurs conditions d'utilisation l'interdisent, et ce serait tricher contre les autres joueurs.
+
 ## Comment le bot apprend
 
 - **Stratégie de base (proche du GTO).** Elle est calculée par Monte Carlo CFR en external sampling avec pondération Linear CFR (option `--rm-plus` pour du regret-matching+ façon CFR+), en self-play heads-up à 100 bb.
@@ -126,7 +178,7 @@ v1 gagne plus que v2 contre les bots très faibles (aléatoire, maniac). C'est a
 
 ## Limites connues (honnêtes)
 
-- La stratégie CFR est **heads-up**. En 6-max, le bot l'utilise quand il ne reste que deux joueurs. Au préflop multiway et dans les coups hors de l'arbre abstrait, il joue avec des règles ABC (ranges et équité), ajustées par l'exploitation. L'explication indique toujours lequel des deux modes il utilise.
+- En 6-max, seul le préflop a une stratégie MCCFR propre. Les pots à 3 joueurs ou plus après le flop se jouent avec les règles ABC. L'explication indique toujours quel mode le bot utilise.
 - L'abstraction est volontairement petite pour un entraînement sur un PC : le bot est solide face aux profils simples, mais loin d'un bot de recherche comme Slumbot.
 - Rejouer des mains réelles ne met pas les regrets CFR à jour directement : ce n'est pas l'algorithme. Les mains jouées servent aux modèles d'adversaires, et la stratégie progresse par self-play.
 

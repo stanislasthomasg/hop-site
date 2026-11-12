@@ -168,7 +168,8 @@ def test_duplicate_cash_conditions_pay_rake():
 def test_sixmax_game_and_bot_mapping():
     from pokerbot.training.sixmax import PState, replay, train_sixmax
     s = replay("offffc")                                # UTG opens, BB calls
-    assert s.terminal and s.utility(0, [9, 0, 0, 0, 0, 1]) == pytest.approx(550 - 27.5 - 250)
+    # UTG is in position against the BB after the flop: realises 105% of the pot
+    assert s.terminal and s.utility(0, [9, 0, 0, 0, 0, 1]) == pytest.approx((550 - 27.5) * 1.05 - 250)
     assert replay("ffffc").legal() == "ko"              # SB completes: BB option
     t = Tables()
     train_sixmax(t, 400, workers=1, batch=400, verbose=False)
