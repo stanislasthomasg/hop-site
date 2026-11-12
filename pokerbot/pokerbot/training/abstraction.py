@@ -35,6 +35,8 @@ class CardAbstraction:
     buckets: tuple[int, int, int] = (12, 10, 8)        # flop, turn, river
     samples: int = 96                                  # Monte Carlo rollouts per equity
     thresholds: list[list[float]] = field(default_factory=list)
+    cheap_raises: int = 2      # raises per street before only pot / all-in remain
+    max_raises: int = 4        # bets + raises per street
 
     def equity(self, hole, board) -> float:
         return equity_vs_random(hole, board, 1, self.samples, random.Random(_cards_seed(hole, board)))
@@ -60,8 +62,14 @@ class CardAbstraction:
         return self
 
     def to_dict(self) -> dict:
-        return {"buckets": list(self.buckets), "samples": self.samples, "thresholds": self.thresholds}
+        return {"buckets": list(self.buckets), "samples": self.samples, "thresholds": self.thresholds,
+                "cheap_raises": self.cheap_raises, "max_raises": self.max_raises}
 
     @staticmethod
     def from_dict(d: dict) -> "CardAbstraction":
-        return CardAbstraction(tuple(d["buckets"]), d["samples"], d["thresholds"])
+        return CardAbstraction(tuple(d["buckets"]), d["samples"], d["thresholds"],
+                               d.get("cheap_raises", 2), d.get("max_raises", 4))
+
+    def new_state(self):
+        from .abstract_game import STACK, AState
+        return AState(STACK, self.cheap_raises, self.max_raises)

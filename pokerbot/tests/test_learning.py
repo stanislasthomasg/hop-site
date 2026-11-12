@@ -41,6 +41,9 @@ def test_abstract_game_rules():
 def test_raise_cap():
     s = replay("pppp")                                 # 4 raises preflop
     assert s.legal() == "fc"
+    small = replay("h", cheap_raises=1, max_raises=3)  # smaller tree used from v2 on
+    assert small.legal() == "fcpa"
+    assert replay("hpa", cheap_raises=1, max_raises=3).legal() == "fc"
 
 
 def test_regret_matching():
@@ -52,7 +55,8 @@ def test_training_builds_a_valid_strategy(tiny_model):
     t, ab = tiny_model
     bp = average_strategy(t)
     assert len(bp) > 1000
-    for key, (acts, probs) in list(bp.items())[:2000]:
+    for key, (acts, probs, weight) in list(bp.items())[:2000]:
+        assert weight > 0
         assert len(acts) == len(probs) and abs(sum(probs) - 1) < 1e-3
         hist = key.split(":", 1)[1]
         assert replay(hist).legal() == acts            # actions stored match the tree
@@ -61,7 +65,7 @@ def test_training_builds_a_valid_strategy(tiny_model):
 def test_aa_never_folds_preflop(tiny_model):
     t, ab = tiny_model
     bp = average_strategy(t)
-    acts, probs = bp["0:"]                             # class 0 = AA, SB first to act
+    acts, probs, _ = bp["0:"]                          # class 0 = AA, SB first to act
     assert probs[acts.index("f")] < 0.15
 
 
@@ -73,7 +77,7 @@ def test_pseudo_harmonic_mapping():
 
 def test_translation_of_real_hand(tiny_model):
     t, ab = tiny_model
-    bot = LearnerBot(average_strategy(t), ab, seed=0)
+    bot = LearnerBot(average_strategy(t), ab, seed=0, min_weight=0)
     s = HandState([10000, 10000], button=0, rng=random.Random(1))
     s.apply(Action.raise_to(300))                      # exactly 'p' (pot) preflop
     s.apply(Action.call())
@@ -87,7 +91,7 @@ def test_translation_of_real_hand(tiny_model):
 
 def test_learner_plays_legal_hands_vs_profiles(tiny_model):
     t, ab = tiny_model
-    bot = LearnerBot(average_strategy(t), ab, name="learner", seed=1)
+    bot = LearnerBot(average_strategy(t), ab, name="learner", seed=1, min_weight=0)
     for opp in ("station", "maniac", "abc"):
         table = Table([bot, make_agent(opp, seed=2)], seed=5)
         list(table.play(150))

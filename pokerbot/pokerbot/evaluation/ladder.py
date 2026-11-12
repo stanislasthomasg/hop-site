@@ -17,10 +17,10 @@ from .duplicate import duplicate_match
 from .stats import bb100_ci
 
 LEVELS = {
-    1: ("Low stakes: simple bots", ["random", "station", "nit", "maniac"]),
-    2: ("Mid stakes: solid profiles", ["abc", "abc:tightness=0.7", "abc:tightness=1.4"]),
-    3: ("High stakes: older versions of the bot", []),
-    4: ("Elite: best version (then Slumbot)", []),
+    1: ("Low stakes : bots simples", ["random", "station", "nit", "maniac"]),
+    2: ("Mid stakes : profils solides", ["abc", "abc:tightness=0.7", "abc:tightness=1.4"]),
+    3: ("High stakes : anciennes versions du bot", []),
+    4: ("Élite : meilleure version actuelle", []),
 }
 MAX_LEVEL = 4
 
@@ -88,7 +88,7 @@ def evaluate_level(version: str, level: int, hands: int, workers: int = 4, seed:
     opps = level_opponents(level, version)
     if not opps:
         return None
-    deals = max(1, hands // (2 * len(opps)))
+    deals = max(1, -(-hands // (2 * len(opps))))   # round up: never fall short of `hands`
     all_samples, per = [], []
     con = _db()
     for k, opp in enumerate(opps):
@@ -99,7 +99,7 @@ def evaluate_level(version: str, level: int, hands: int, workers: int = 4, seed:
         if verbose:
             fb = next(iter(res.fallback_rate.values()), 0.0)
             print(f"    vs {opp:22s} {m:+8.1f} bb/100  [{lo:+.1f}, {hi:+.1f}]  "
-                  f"({res.hands:,} hands, off-blueprint decisions {100 * fb:.0f}%)", flush=True)
+                  f"({res.hands:,} mains, décisions hors stratégie CFR {100 * fb:.0f} %)", flush=True)
         con.execute("INSERT INTO evals VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                     (time.strftime("%Y-%m-%d %H:%M:%S"), version, level, opp, deals, res.hands,
                      m, lo, hi, "", json.dumps(_curve(res.samples[0]))))
@@ -126,11 +126,11 @@ def climb(version: str, hands: int = 50_000, workers: int = 4, verbose: bool = T
     while True:
         level = entry["level"]
         if verbose:
-            print(f"[{version}] level {level}: {LEVELS[level][0]}", flush=True)
+            print(f"[{version}] niveau {level} : {LEVELS[level][0]}", flush=True)
         r = evaluate_level(version, level, hands, workers, verbose=verbose)
         if r is None:
             if verbose:
-                print("    (no opponents at this level yet: skipped)")
+                print("    (pas encore d'adversaire à ce niveau : niveau sauté)")
             if level >= MAX_LEVEL:
                 entry["champion"] = True
                 break
@@ -143,15 +143,16 @@ def climb(version: str, hands: int = 50_000, workers: int = 4, verbose: bool = T
                                  "hi": round(r.hi, 2), "hands": r.hands, "decision": r.decision,
                                  "ts": time.strftime("%Y-%m-%d %H:%M:%S")})
         if verbose:
-            print(f"  => level {level}: {r.bb100:+.1f} bb/100 [{r.lo:+.1f}, {r.hi:+.1f}] "
-                  f"over {r.hands:,} hands -> {r.decision.upper()}", flush=True)
+            word = {"promote": "MONTE", "demote": "DESCEND", "stay": "RESTE"}[r.decision]
+            print(f"  => niveau {level} : {r.bb100:+.1f} bb/100 [{r.lo:+.1f}, {r.hi:+.1f}] "
+                  f"sur {r.hands:,} mains -> {word}", flush=True)
         if r.decision == "promote":
             if level >= MAX_LEVEL:
                 entry["champion"] = True
                 if resolve("best") != version:
                     set_best(version)
                     if verbose:
-                        print(f"  {version} beat the previous best version: it is the new best")
+                        print(f"  {version} a battu la meilleure version : c'est la nouvelle meilleure")
                 break
             entry["level"] = level + 1
             continue

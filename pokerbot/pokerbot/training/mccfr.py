@@ -125,7 +125,7 @@ class Trainer:
         for it in range(n):
             buckets, sign = self.deal(rng)
             for i in (0, 1):
-                self.traverse(AState(), i, buckets, sign, rng)
+                self.traverse(self.abs.new_state(), i, buckets, sign, rng)
 
     def deltas(self):
         """Changes since the trainer was created (for merging into the master)."""
@@ -220,12 +220,13 @@ def train(tables: Tables, abstraction: CardAbstraction, cfg: TrainConfig,
     return tables
 
 
-def average_strategy(tables: Tables) -> dict[str, tuple[str, tuple[float, ...]]]:
-    """Blueprint: key -> (actions, probabilities) from the average strategy."""
+def average_strategy(tables: Tables) -> dict[str, tuple[str, tuple[float, ...], float]]:
+    """Blueprint: key -> (actions, probabilities, weight) from the average strategy.
+    ``weight`` (discounted visit mass) tells how well trained the infoset is."""
     out = {}
     for k, st in tables.strat.items():
         s = sum(st)
         if s <= 0:
             continue
-        out[k] = (tables.actions[k], tuple(round(x / s, 4) for x in st))
+        out[k] = (tables.actions[k], tuple(round(x / s, 4) for x in st), round(s, 2))
     return out

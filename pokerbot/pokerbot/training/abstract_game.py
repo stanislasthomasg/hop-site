@@ -16,10 +16,13 @@ CHEAP_RAISES = 2      # after this many raises only pot and all-in remain, then 
 
 class AState:
     __slots__ = ("street", "contrib", "bets", "to_act", "nraises", "last_raise",
-                 "acted", "history", "terminal", "folder", "stack")
+                 "acted", "history", "terminal", "folder", "stack", "cheap", "cap")
 
-    def __init__(self, stack: int = STACK) -> None:
+    def __init__(self, stack: int = STACK, cheap_raises: int = CHEAP_RAISES,
+                 max_raises: int = MAX_RAISES) -> None:
         self.stack = stack
+        self.cheap = cheap_raises
+        self.cap = max_raises
         self.street = 0
         self.contrib = [SB, BB]
         self.bets = [SB, BB]
@@ -34,6 +37,8 @@ class AState:
     def copy(self) -> "AState":
         s = AState.__new__(AState)
         s.stack = self.stack
+        s.cheap = self.cheap
+        s.cap = self.cap
         s.street = self.street
         s.contrib = self.contrib[:]
         s.bets = self.bets[:]
@@ -69,11 +74,11 @@ class AState:
         tc = self.to_call()
         acts = "fc" if tc > 0 else "k"
         my_left = self.stack - self.contrib[p]
-        if my_left > tc and self.contrib[o] < self.stack and self.nraises < MAX_RAISES:
+        if my_left > tc and self.contrib[o] < self.stack and self.nraises < self.cap:
             all_in_to = self.bets[p] + my_left
-            if self.nraises < CHEAP_RAISES:
+            if self.nraises < self.cheap:
                 sizes = "hpd"
-            elif self.nraises < CHEAP_RAISES + 1:
+            elif self.nraises < self.cheap + 1:
                 sizes = "p"
             else:
                 sizes = ""
@@ -143,8 +148,9 @@ class AState:
         return float(v if player == 0 else -v)
 
 
-def replay(history: str, stack: int = STACK) -> AState:
-    s = AState(stack)
+def replay(history: str, stack: int = STACK, cheap_raises: int = CHEAP_RAISES,
+           max_raises: int = MAX_RAISES) -> AState:
+    s = AState(stack, cheap_raises, max_raises)
     for ch in history:
         if ch != "/":
             s._apply(ch)

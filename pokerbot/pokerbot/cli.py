@@ -11,7 +11,7 @@ def cmd_simulate(a):
     from .engine import HandStore, Table, format_hand
     from .evaluation.stats import compute_stats, format_stats_table
     specs = a.agents.split(",") if a.agents else ["random"] * a.players
-    agents = [make_agent(s, name=f"{s}{i + 1}", seed=a.seed + i) for i, s in enumerate(specs)]
+    agents = [make_agent(s, name=f"{s}-{i + 1}", seed=a.seed + i) for i, s in enumerate(specs)]
     store = None
     if a.db:
         Path(a.db).parent.mkdir(parents=True, exist_ok=True)

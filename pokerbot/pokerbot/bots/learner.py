@@ -19,7 +19,6 @@ from ..engine.cards import cards_to_str
 from ..engine.equity import hand_class, preflop_equity
 from ..engine.records import HandRecord
 from ..engine.state import PlayerView
-from ..training.abstract_game import STACK, AState
 from ..training.abstraction import BET_FRACTIONS, CardAbstraction
 from .base import Agent
 from .exploit import ModelBook, adjust
@@ -45,7 +44,7 @@ def pseudo_harmonic(x: float, a: float, b: float) -> float:
 class LearnerBot(Agent):
     def __init__(self, blueprint: dict, abstraction: CardAbstraction, name: str | None = None,
                  seed: int | None = None, exploit: bool = True, book: ModelBook | None = None,
-                 version: str = "", exploit_scale: float = 1.0) -> None:
+                 version: str = "", exploit_scale: float = 1.0, min_weight: float = 20.0) -> None:
         super().__init__(name or (version or "learner"))
         self.bp = blueprint
         self.abs = abstraction
@@ -58,6 +57,7 @@ class LearnerBot(Agent):
         self.table_names: list[str] = []
         self.last_explanation = ""
         self.stats = {"blueprint": 0, "fallback": 0}
+        self.min_weight = min_weight
         self._hands = 0
 
     @classmethod
@@ -76,7 +76,7 @@ class LearnerBot(Agent):
             return None
         button = view.button
         ap = lambda seat: 0 if seat == button else 1  # noqa: E731
-        s = AState(STACK)
+        s = self.abs.new_state()
         start = list(view.starting_stacks)
         contrib = [0, 0]
         bets = [0, 0]
@@ -145,18 +145,21 @@ class LearnerBot(Agent):
 
     def act(self, view: PlayerView) -> Action:
         s = self.translate(view)
-        entry = None
+        entry, why = None, "coup hors de l'arbre abstrait (ligne inhabituelle ou multiway)"
         if s is not None:
             bucket = self.abs.bucket(view.hole, view.board)
             key = f"{bucket}:{s.history}"
             entry = self.bp.get(key)
+            why = "situation jamais rencontrée à l'entraînement"
             if entry is not None and entry[0] != s.legal():
                 entry = None
+            elif entry is not None and len(entry) > 2 and entry[2] < self.min_weight:
+                why = f"situation trop peu entraînée (poids {entry[2]:.0f} < {self.min_weight:.0f})"
+                entry = None
         if entry is None:
-            return self._fallback_act(view, "coup hors de l'arbre abstrait (ligne inhabituelle ou multiway)"
-                                      if s is None else "situation jamais rencontrée à l'entraînement")
+            return self._fallback_act(view, why)
         self.stats["blueprint"] += 1
-        acts, probs = entry
+        acts, probs = entry[0], entry[1]
         strength = self._strength(view)
         model = self._opponent_model(view)
         new_probs, reasons = adjust(acts, list(probs), model, strength,

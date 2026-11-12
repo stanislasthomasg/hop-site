@@ -10,13 +10,15 @@ from .registry import load_tables, resolve, save_version
 
 def train_version(iterations: int, workers: int = 4, parent: str | None = None,
                   minutes: float | None = None, rm_plus: bool = False, seed: int = 0,
-                  buckets: tuple[int, int, int] = (12, 10, 8), verbose: bool = True) -> str:
+                  buckets: tuple[int, int, int] = (10, 8, 6), cheap_raises: int = 1,
+                  max_raises: int = 3, verbose: bool = True) -> str:
     """Train a new version, starting from ``parent`` (resume) or from scratch."""
     if parent:
         parent = resolve(parent)
         tables, abstraction = load_tables(parent)
     else:
-        abstraction = CardAbstraction(buckets=buckets).fit(3000, seed=seed)
+        abstraction = CardAbstraction(buckets=buckets, cheap_raises=cheap_raises,
+                                      max_raises=max_raises).fit(3000, seed=seed)
         tables = Tables()
     start_it = tables.iterations
     last = [0.0]
@@ -35,6 +37,7 @@ def train_version(iterations: int, workers: int = 4, parent: str | None = None,
         "parent": parent, "trained_iterations": tables.iterations - start_it,
         "train_seconds": round(time.time() - t0), "rm_plus": rm_plus,
         "buckets": list(abstraction.buckets),
+        "tree": {"cheap_raises": abstraction.cheap_raises, "max_raises": abstraction.max_raises},
     })
     if verbose:
         print(f"saved {name} ({tables.iterations:,} iterations total)")

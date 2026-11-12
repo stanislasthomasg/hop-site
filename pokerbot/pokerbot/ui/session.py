@@ -29,9 +29,10 @@ class GameSession:
         self.human_seat = 0
         self.bots = []
         for i, spec in enumerate(opponents):
-            kwargs = {}
-            agent = make_agent(spec, name=spec if spec not in [o for o in opponents[:i]] else f"{spec}#{i}",
-                               seed=self.rng.getrandbits(32))
+            name = None if spec.startswith("bot") else spec    # bots show their version (bot_v2)
+            if spec in opponents[:i]:
+                name = f"{spec}#{i}"
+            agent = make_agent(spec, name=name, seed=self.rng.getrandbits(32))
             if hasattr(agent, "book") and book_path:
                 from ..bots.exploit import ModelBook
                 agent.book = ModelBook(book_path)

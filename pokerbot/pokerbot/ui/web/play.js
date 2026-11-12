@@ -100,10 +100,19 @@ function renderControls() {
   }
 }
 
+let busy = false;
 async function send(path, body) {
+  if (busy) return;                       // ignore double clicks while a request is running
+  busy = true;
+  document.querySelectorAll("#controls button, #start").forEach((b) => { b.disabled = true; });
   $("status").textContent = "";
-  try { snap = await api(path, body); render(); }
+  try { snap = await api(path, body); }
   catch (e) { $("status").textContent = e.message; }
+  finally {
+    busy = false;
+    $("start").disabled = false;
+    render();
+  }
 }
 const act = (a) => send("/api/act", a);
 
