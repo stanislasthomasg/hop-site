@@ -22,7 +22,7 @@ STREET_NAMES_FR = ("préflop", "flop", "turn", "river", "abattage")
 class GameSession:
     def __init__(self, opponents: list[str], human_name: str = "you", seed: int | None = None,
                  db: str | Path | None | bool = None, stack: int = 10_000, sb: int = 50, bb: int = 100,
-                 book_path: str | Path | None = None) -> None:
+                 book_path: str | Path | None = None, search: bool = True) -> None:
         self.rng = random.Random(seed)
         self.human_name = human_name
         self.n = len(opponents) + 1
@@ -30,6 +30,8 @@ class GameSession:
         self.bots = []
         for i, spec in enumerate(opponents):
             name = None if spec.startswith("bot") else spec    # bots show their version (bot_v2)
+            if spec.startswith("bot:") and not spec.endswith("+search") and search:
+                spec += "+search"                               # think harder against humans
             if spec in opponents[:i]:
                 name = f"{spec}#{i}"
             agent = make_agent(spec, name=name, seed=self.rng.getrandbits(32))

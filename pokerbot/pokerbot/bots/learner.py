@@ -55,10 +55,12 @@ class LearnerBot(Agent):
     def __init__(self, blueprint: dict, abstraction: CardAbstraction, name: str | None = None,
                  seed: int | None = None, exploit: bool = True, book: ModelBook | None = None,
                  version: str = "", exploit_scale: float = 1.0, min_weight: float = 20.0,
-                 sixmax: dict | None = None) -> None:
+                 sixmax: dict | None = None, search: bool = False) -> None:
         super().__init__(name or (version or "learner"))
         self.bp = blueprint
         self.six = sixmax
+        self.search = search
+        self._decisions: list | None = None
         self.abs = abstraction
         self.rng = random.Random(seed)
         self.exploit = exploit
@@ -76,11 +78,13 @@ class LearnerBot(Agent):
     @classmethod
     def from_version(cls, version: str = "best", name: str | None = None, seed: int | None = None,
                      exploit: bool = True, book_path: str | None = None) -> "LearnerBot":
+        """``version`` may end with '+search' to enable real-time river search."""
         from ..training.registry import resolve
-        v = resolve(version)
+        search = version.endswith("+search")
+        v = resolve(version.removesuffix("+search"))
         bp, ab = _cached_blueprint(v)
         return cls(bp, ab, name=name or v, seed=seed, exploit=exploit,
-                   book=ModelBook(book_path), version=v, sixmax=_cached_sixmax(v))
+                   book=ModelBook(book_path), version=v, sixmax=_cached_sixmax(v), search=search)
 
     # ------------------------------------------------------------------ translation
     def translate(self, view: PlayerView) -> AState | None:
@@ -105,6 +109,8 @@ class LearnerBot(Agent):
         else:
             return None
         ap = {ip: 0, op: 1}
+        self._ap = ap
+        self._decisions = [] if hist0 is None else None   # (player, street, history, char)
         start = list(view.starting_stacks)
         start_eff = min(start[ip], start[op]) / view.bb
         self._depth = self.abs.depth_index(start_eff)
@@ -150,6 +156,8 @@ class LearnerBot(Agent):
                 return None
             contrib[a.seat] += a.added
             bets[a.seat] += a.added
+            if self._decisions is not None:
+                self._decisions.append((ap[a.seat], s.street, s.history, ch))
             s._apply(ch)
         if s.terminal or s.street != view.street or s.to_act != ap.get(view.seat, -1):
             return None
@@ -248,6 +256,12 @@ class LearnerBot(Agent):
             elif entry is not None and len(entry) > 2 and entry[2] < self.min_weight:
                 why = f"situation trop peu entraînée (poids {entry[2]:.0f} < {self.min_weight:.0f})"
                 entry = None
+        searched = None
+        if (self.search and s is not None and view.street == 3 and view.n_players == 2
+                and self._decisions is not None):
+            searched = self._river_search(view, s)
+        if searched is not None:
+            entry = (searched[0], searched[1])
         if entry is None:
             return self._fallback_act(view, why)
         self.stats["blueprint"] += 1
@@ -262,7 +276,36 @@ class LearnerBot(Agent):
         action = self._to_real(view, ch)
         self.last_explanation = self._explain(view, bucket, s.history, acts, probs, new_probs,
                                               reasons, strength, ch, action, model)
+        if searched is not None:
+            n0, n1 = searched[2]["hands"]
+            self.last_explanation = self.last_explanation.replace(
+                "Stratégie CFR (proche GTO)",
+                f"Recherche en temps réel ({searched[2]['iterations']} it. CFR+ sur {n0}x{n1} combinaisons, "
+                f"ranges reconstruites depuis la ligne)")
         return action
+
+    def _river_search(self, view: PlayerView, s):
+        from ..training.abstract_game import BB
+        from .river_search import RiverSolver
+        dec = self._decisions
+        root = self.abs.new_state(self._depth)
+        for _, street, _, ch in dec:
+            if street < 3:
+                root._apply(ch)
+        if root.terminal or root.street != 3:
+            return None
+        path = "".join(ch for _, street, _, ch in dec if street == 3)
+        solver = RiverSolver(self.abs, self.bp, self.abs.key_prefix(self._depth))
+        try:
+            res = solver.solve(root, path, list(view.board), list(view.hole), self._ap[view.seat],
+                               [d for d in dec if d[1] < 3], self.abs.rake_pct, self.abs.rake_cap_bb * BB)
+        except (ValueError, IndexError):
+            return None
+        if res is None or res[0] != s.legal():
+            return None
+        self.stats.setdefault("search", 0)
+        self.stats["search"] += 1
+        return res
 
     def _act_sixmax(self, view: PlayerView) -> Action:
         r = self.translate_sixmax(view)

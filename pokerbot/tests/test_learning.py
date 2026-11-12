@@ -195,3 +195,19 @@ def test_synthetic_preflop_for_heads_up_pots_in_6max():
     assert s.street == 1 and s.to_act == 2
     a = bot.translate(s.view())
     assert a is not None and a.history == "pc/" and a.to_act == 1   # BB = abstract OOP player
+
+
+def test_river_solver_value_bets_nuts_and_folds_air():
+    """River solve on a fixed spot: with the nuts the bot bets, with nothing it does not call."""
+    from pokerbot.bots.river_search import RiverSolver
+    from pokerbot.engine import parse_cards
+    tiny = CardAbstraction(buckets=(2, 2, 2), samples=8).fit(50)
+    solver = RiverSolver(tiny, {}, iterations=60, min_rel_weight=0.0, max_hands=200)
+    board = parse_cards("Ah Kd 7c 4s 2h")
+    root = replay("pc/kk/kk/")                      # checked down to the river, pot 600
+    assert root.street == 3 and root.to_act == 1
+    acts, probs, _ = solver.solve(root, "k", board, parse_cards("As Ad"), 0, [])
+    bet = sum(p for a, p in zip(acts, probs) if a in "hpda")
+    assert acts == "khpda" and bet > 0.6               # top set in position: bet
+    acts, probs, _ = solver.solve(root, "p", board, parse_cards("6d 3c"), 0, [])
+    assert acts[0] == "f" and probs[0] > 0.6           # 6-high facing a pot bet: mostly fold
