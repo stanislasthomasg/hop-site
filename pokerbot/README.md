@@ -17,6 +17,15 @@ Projet de recherche **en simulation uniquement**. Il ne se connecte à aucun sit
 
 L'architecture détaillée est dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Lancer l'appli en un double-clic
+
+Dans le dossier `pokerbot` :
+- **Mac** : double-cliquez sur `Lancer-pokerbot.command`. La première fois, si macOS bloque le fichier, faites clic droit puis Ouvrir.
+- **Windows** : double-cliquez sur `Lancer-pokerbot.bat`.
+- **Linux** : `./Lancer-pokerbot.command`.
+
+Le premier lancement installe tout automatiquement (1 à 2 minutes), puis la table s'ouvre dans le navigateur. Les fois suivantes, l'appli démarre directement. Fermez la fenêtre du terminal pour arrêter.
+
 ## Installation
 
 Il faut Python 3.10 ou plus récent (`python3 --version`) et git.

@@ -120,10 +120,23 @@ def make_handler(app: App):
 
 
 def serve(port: int = 8000, opponents: list[str] | None = None, seed: int | None = None,
-          host: str = "127.0.0.1") -> None:
+          host: str = "127.0.0.1", open_browser: bool = False) -> None:
     app = App(opponents or ["bot:best"], seed)
-    httpd = ThreadingHTTPServer((host, port), make_handler(app))
-    print(f"pokerbot web: http://{host}:{port}  (Ctrl+C pour arrêter)")
+    httpd = None
+    for p in range(port, port + 20):          # next free port if 8000 is taken
+        try:
+            httpd = ThreadingHTTPServer((host, p), make_handler(app))
+            port = p
+            break
+        except OSError:
+            continue
+    if httpd is None:
+        raise SystemExit(f"aucun port libre entre {port} et {port + 19}")
+    url = f"http://{host}:{port}"
+    print(f"pokerbot web : {url}  (Ctrl+C pour arrêter)")
+    if open_browser:
+        import webbrowser
+        threading.Timer(0.8, webbrowser.open, args=(url,)).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

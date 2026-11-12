@@ -119,7 +119,7 @@ def cmd_play(a):
 
 def cmd_web(a):
     from .ui.web_server import serve
-    serve(a.port, a.opponents.split(","), host=a.host)
+    serve(a.port, a.opponents.split(","), host=a.host, open_browser=a.open)
 
 
 def cmd_dashboard(a):
@@ -235,6 +235,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--port", type=int, default=8000)
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--opponents", default="bot:best")
+    s.add_argument("--open", action="store_true", help="ouvrir le navigateur automatiquement")
     s.set_defaults(func=cmd_web)
 
     s = sub.add_parser("dashboard", help="exporter le tableau de bord en un fichier HTML")
