@@ -130,6 +130,18 @@ def publish_site(cfg: dict) -> None:
         log(f"site copié et commité dans {dest} (push désactivé dans autopilot.json)")
 
 
+def site_is_outdated(cfg: dict) -> bool:
+    """True when a website repo is configured and does not serve the best version yet."""
+    s = cfg["site"]
+    if not s.get("build") or not s.get("deploy_repo"):
+        return False
+    manifest = Path(s["deploy_repo"]).expanduser() / s["deploy_subdir"] / "model" / "manifest.json"
+    try:
+        return json.loads(manifest.read_text())["version"] != resolve("best")
+    except (OSError, ValueError, KeyError):
+        return True
+
+
 def play_platforms(cfg: dict) -> None:
     p = cfg["platforms"]
     for server in p.get("acpc", []):
@@ -160,6 +172,12 @@ def run(cycles: int | None = None) -> None:
         f"{cfg['workers']} processus, meilleure version actuelle : {resolve('best')}")
     if cfg["web"]["enabled"]:
         start_web(cfg)
+    if site_is_outdated(cfg):
+        log("votre site n'a pas encore la meilleure version : publication")
+        try:
+            publish_site(cfg)
+        except Exception:
+            log("publication impossible :\n" + traceback.format_exc())
     done = 0
     while cfg["cycles"] == 0 or done < cfg["cycles"]:
         done += 1

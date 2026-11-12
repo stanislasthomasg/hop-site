@@ -164,3 +164,14 @@ def test_autopilot_config_and_publish(tmp_path, monkeypatch):
     assert (site / "poker" / "index.html").exists()
     log = subprocess.run(["git", "-C", str(site), "log", "--oneline"], capture_output=True, text=True).stdout
     assert "nouvelle meilleure version" in log
+
+
+def test_autopilot_detects_outdated_site(tmp_path, monkeypatch):
+    from pokerbot import autopilot
+    monkeypatch.setenv("POKERBOT_MODELS", str(tmp_path / "models"))
+    cfg = {"site": {"build": True, "deploy_repo": str(tmp_path / "web"), "deploy_subdir": "poker"}}
+    assert autopilot.site_is_outdated(cfg)                       # nothing published yet
+    (tmp_path / "web" / "poker" / "model").mkdir(parents=True)
+    (tmp_path / "web" / "poker" / "model" / "manifest.json").write_text('{"version": "bot_v2"}')
+    assert not autopilot.site_is_outdated(cfg)                   # already serves the best version
+    assert not autopilot.site_is_outdated({"site": {"build": True, "deploy_repo": ""}})
