@@ -22,10 +22,29 @@ from .mccfr import Tables, average_strategy
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+PRETRAINED = Path(__file__).resolve().parents[1] / "pretrained"
+
+
 def models_dir() -> Path:
     d = Path(os.environ.get("POKERBOT_MODELS", PROJECT_ROOT / "models"))
     d.mkdir(parents=True, exist_ok=True)
+    install_pretrained(d)
     return d
+
+
+def install_pretrained(d: Path) -> None:
+    """First run: copy the pre-trained versions shipped with the code, so the bot is
+    playable without training. They cannot be resumed (no regret tables)."""
+    if not PRETRAINED.exists() or any(p.name.startswith("bot_v") for p in d.iterdir()):
+        return
+    import shutil
+    for v in PRETRAINED.iterdir():
+        if v.is_dir() and not (d / v.name).exists():
+            shutil.copytree(v, d / v.name)
+    if not (d / "best.txt").exists():
+        names = sorted((p.name for p in PRETRAINED.iterdir() if p.is_dir()), key=lambda n: int(n[5:]))
+        if names:
+            (d / "best.txt").write_text(names[-1])
 
 
 def list_versions() -> list[str]:

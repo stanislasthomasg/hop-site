@@ -7,17 +7,20 @@ name = "pokerbot"
 version = "0.1.0"
 description = "No-Limit Hold'em bots that learn by self-play (simulation only)"
 requires-python = ">=3.10"
-dependencies = ["eval7>=0.1.10", "numpy>=1.26"]
+dependencies = ["numpy>=1.26"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
-fast = ["numba>=0.59"]
+dev = ["pytest>=8", "eval7>=0.1.10"]
+fast = ["eval7>=0.1.10"]     # C hand evaluator, ~10x faster (optional: pure-Python fallback)
 
 [project.scripts]
 pokerbot = "pokerbot.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["pokerbot*"]
+
+[tool.setuptools.package-data]
+pokerbot = ["engine/*.json", "pretrained/*/*", "ui/web/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

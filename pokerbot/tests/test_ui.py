@@ -131,3 +131,12 @@ def test_acpc_client_against_fake_dealer():
     assert play_acpc("127.0.0.1", port, "abc", verbose=False) == 1
     th.join()
     assert got[0] == "VERSION:2.0.0" and got[1].startswith("MATCHSTATE:1:0::AsAd|:r")   # AA raises
+
+
+def test_pretrained_model_installs_on_first_run(tmp_path, monkeypatch):
+    monkeypatch.setenv("POKERBOT_MODELS", str(tmp_path / "models"))
+    from pokerbot.training.registry import list_versions, resolve
+    assert resolve("best") == "bot_v2" and "bot_v2" in list_versions()
+    from pokerbot.bots import make_agent
+    bot = make_agent("bot:best", seed=0)
+    assert bot.six is not None and len(bot.bp) > 1000

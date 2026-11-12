@@ -1,0 +1,22 @@
+{
+  "version": "bot_v2",
+  "created": "2026-11-12 13:07:31",
+  "iterations": 1944000,
+  "infosets": 93788,
+  "parent": null,
+  "trained_iterations": 1944000,
+  "train_seconds": 2105,
+  "rm_plus": false,
+  "buckets": [
+    10,
+    8,
+    6
+  ],
+  "tree": {
+    "cheap_raises": 1,
+    "max_raises": 3
+  },
+  "sixmax_iterations": 4992000,
+  "sixmax_infosets": 1847956,
+  "note": "version pr\u00e9-entra\u00een\u00e9e fournie avec le code (sans tables de regrets)"
+}
