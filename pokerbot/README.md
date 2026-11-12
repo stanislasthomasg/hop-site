@@ -19,10 +19,28 @@ L'architecture détaillée est dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Installation
 
+Il faut Python 3.10 ou plus récent (`python3 --version`) et git.
+
 ```bash
+git clone https://github.com/stanislasthomasg/hop-site.git
+cd hop-site
+git checkout claude/poker-nlhe-learning-bot-f87q40
 cd pokerbot
-pip install -e ".[dev]"          # eval7, numpy, pytest ; Python 3.10+
-python -m pytest -q              # 70 tests
+
+python3 -m venv .venv
+source .venv/bin/activate          # Windows : .venv\Scripts\activate
+pip install -e .                   # le minimum pour jouer
+pip install -e ".[dev]"            # optionnel : eval7 (10x plus rapide) + pytest, recommandé pour entraîner
+```
+
+Si `eval7` refuse de s'installer (il faut un compilateur C sur certains systèmes), ce n'est pas grave : le bot bascule sur l'évaluateur en Python pur.
+
+La meilleure version entraînée (bot_v2 avec sa stratégie 6-max) est fournie et s'installe dans `models/` au premier lancement. On peut jouer tout de suite :
+
+```bash
+python -m pokerbot play            # dans le terminal
+python -m pokerbot web             # puis ouvrir http://127.0.0.1:8000
+python -m pytest -q                # vérifier l'installation (71 tests, nécessite .[dev])
 ```
 
 ## 1. Entraîner le bot
