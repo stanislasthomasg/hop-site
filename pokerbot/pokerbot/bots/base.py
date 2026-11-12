@@ -11,6 +11,7 @@ class Agent:
 
     def __init__(self, name: str | None = None) -> None:
         self.name = name or type(self).__name__
+        self.table_names: list[str] = []   # names of every seat, set by the table each hand
 
     def act(self, view: PlayerView) -> Action:  # pragma: no cover - abstract
         raise NotImplementedError

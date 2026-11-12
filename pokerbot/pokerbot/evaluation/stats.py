@@ -56,7 +56,8 @@ class PlayerStats:
             "name": self.name, "hands": self.hands, "net_bb": round(self.net_bb, 1),
             "bb100": round(self.bb100, 2), "vpip": round(self.vpip.pct, 1),
             "pfr": round(self.pfr.pct, 1), "3bet": round(self.three_bet.pct, 1),
-            "fold_to_3bet": round(self.fold_to_3bet.pct, 1), "af": round(self.af, 2),
+            "fold_to_3bet": round(self.fold_to_3bet.pct, 1),
+            "af": round(self.af, 2) if math.isfinite(self.af) else None,  # bets but never called
             "cbet": round(self.cbet.pct, 1), "fold_to_cbet": round(self.fold_to_cbet.pct, 1),
             "wtsd": round(self.wtsd.pct, 1), "w$sd": round(self.won_at_sd.pct, 1),
         }
@@ -175,5 +176,5 @@ def format_stats_table(stats: dict[str, PlayerStats]) -> str:
     lines = [head]
     for st in sorted(stats.values(), key=lambda s: -s.bb100):
         d = st.as_dict()
-        lines.append(f"{st.name:14s}" + "".join(f"{d[c]:>13}" for c in cols))
+        lines.append(f"{st.name:14s}" + "".join(f"{'-' if d[c] is None else d[c]:>13}" for c in cols))
     return "\n".join(lines)

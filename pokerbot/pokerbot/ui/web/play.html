@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Table de poker</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header><strong>pokerbot</strong>
+  <nav><a href="/" aria-current="page">Table</a><a href="/dashboard">Tableau de bord</a></nav>
+</header>
+<main>
+  <h1>Jouer contre les bots</h1>
+  <section class="panel actions" aria-label="Nouvelle partie">
+    <label>Adversaires
+      <select id="opponents">
+        <option value="bot:best">Meilleure version du bot (heads-up)</option>
+        <option value="abc">Bot ABC (heads-up)</option>
+        <option value="station">Calling station (heads-up)</option>
+        <option value="nit">Nit (heads-up)</option>
+        <option value="maniac">Maniac (heads-up)</option>
+        <option value="bot:best,abc,station,nit,maniac">6-max : bot + 4 profils</option>
+      </select>
+    </label>
+    <button class="primary" id="start">Nouvelle session</button>
+    <span id="session" class="muted"></span>
+  </section>
+  <p class="status" id="status" role="status"></p>
+  <section class="felt" aria-label="Table">
+    <div class="seats" id="seats"></div>
+    <div class="board" id="board" aria-label="Tableau"></div>
+    <div class="pot" id="pot"></div>
+  </section>
+  <section class="panel actions" id="controls" aria-label="Vos actions"></section>
+  <div class="grid2">
+    <section class="panel"><h2>Déroulé de la main</h2><div class="log" id="log"></div></section>
+    <section class="panel"><h2>Pourquoi le bot a joué ça</h2><div class="log" id="why"><p class="muted">Les explications apparaissent quand le bot agit.</p></div></section>
+  </div>
+  <section class="panel" id="history-panel" hidden><h2>Historique de la main</h2><pre id="history"></pre></section>
+</main>
+<script src="/static/play.js"></script>
+</body>
+</html>

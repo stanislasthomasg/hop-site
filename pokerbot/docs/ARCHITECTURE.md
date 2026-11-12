@@ -17,25 +17,29 @@ pokerbot/
 │   └── table.py       enchaîne les mains : bouton tournant, recave à 100 bb, seeds
 ├── bots/              ÉTAPES 2-3
 │   ├── base.py        interface Agent : act(view) / on_hand_start / on_hand_end
-│   ├── random_bot.py  aléatoire (fait, sert au fuzz-testing)
-│   ├── profiles.py    calling station, nit, maniac, ABC (ranges préflop)
-│   ├── blueprint.py   joue la stratégie CFR (abstraction + traduction des mises)
-│   ├── exploit.py     modèles adverses + ajustement de la stratégie
-│   └── human.py       joueur humain (terminal / web)
+│   ├── random_bot.py  aléatoire (sert aussi au fuzz-testing)
+│   ├── profiles.py    calling station, nit, maniac, ABC (ranges préflop par position)
+│   ├── util.py        tailles de mise, lecture de l'historique
+│   ├── learner.py     bot CFR : traduction des mises, stratégie, explications
+│   ├── exploit.py     modèles adverses bayésiens + ajustements bornés
+│   └── registry.py    construit un agent depuis une spec ('abc', 'bot:best'…)
 ├── training/          ÉTAPE 3
-│   ├── abstraction.py buckets de cartes (équité / EHS² + k-means), tailles de mise
-│   ├── game_tree.py   arbre de jeu abstrait compact (tableaux numpy)
-│   ├── mccfr.py       Monte Carlo CFR (external sampling, Linear CFR / DCFR), numba
-│   ├── selfplay.py    boucle d'entraînement multiprocessing + checkpoints
-│   └── registry.py    versions bot_v1, bot_v2… (métadonnées, rollback)
+│   ├── abstraction.py groupes de cartes par équité, tailles de mise
+│   ├── abstract_game.py arbre de mises heads-up compact
+│   ├── mccfr.py       MCCFR external sampling + Linear CFR, multiprocessing
+│   ├── registry.py    versions bot_v1, bot_v2… (rollback, meilleure version)
+│   └── run.py         entraîner / reprendre une version
 ├── evaluation/        ÉTAPE 4
-│   ├── duplicate.py   matchs duplicate (mêmes cartes, places inversées)
-│   ├── stats.py       bb/100, IC 95 %, VPIP/PFR/AF/3-bet/fold to c-bet
-│   └── ladder.py      niveaux 1→4, règles de montée et de descente
+│   ├── stats.py       VPIP/PFR/3-bet/AF/c-bet/WTSD, bb/100 avec IC 95 %
+│   ├── duplicate.py   matchs duplicate (rotation des places), multiprocessing
+│   ├── ladder.py      niveaux 1→4, montée et descente, base evaluations.db
+│   └── slumbot.py     client API Slumbot (expérimental)
 └── ui/                ÉTAPE 5
-    ├── terminal.py    jouer contre un bot, avec ses explications
-    ├── dashboard.py   courbes de gains, bb/100 par niveau, stats, progrès des versions
-    └── web/           petite interface web
+    ├── session.py     un humain à une table de bots, pas à pas
+    ├── terminal.py    jouer dans le terminal
+    ├── web_server.py  serveur web (bibliothèque standard uniquement)
+    ├── dashboard.py   données du tableau de bord + export HTML autonome
+    └── web/           play.html, dashboard.html, style.css, JS (graphiques SVG)
 ```
 
 Règles de dépendance : `engine` ne dépend de rien d'autre dans le projet. `bots` s'appuie sur `engine`, et `training` sur `engine` et `bots`. `evaluation` utilise tout ce qui précède, et `ui` se contente d'afficher.
@@ -51,8 +55,8 @@ Règles de dépendance : `engine` ne dépend de rien d'autre dans le projet. `bo
 ## Plan par étape
 
 1. **Moteur** (fait) : HU et 6-max, blindes et ante, all-in, side pots, split pots, showdown, SQLite et historique texte, 34 tests unitaires et fuzz.
-2. **Adversaires low stakes** : random, calling station, nit, maniac, ABC (ranges préflop par position, c-bet, value bet simple). On vérifie que leurs stats (VPIP/PFR/AF) collent au profil voulu et que l'ABC bat les autres.
-3. **Bot qui apprend.**
+2. **Adversaires low stakes** (fait) : random, calling station, nit, maniac, ABC (ranges préflop par position, c-bet, value bet simple). On vérifie que leurs stats (VPIP/PFR/AF) collent au profil voulu et que l'ABC bat les autres.
+3. **Bot qui apprend** (fait en heads-up ; points 6 et 7 à venir).
    1. Abstraction des cartes : buckets par EHS² au flop, à la turn et à la river, plus les 169 mains canoniques au préflop. Abstraction des mises : ½ pot, pot, 2× pot, all-in.
    2. MCCFR heads-up (external sampling, Linear CFR / DCFR), stratégie moyenne = blueprint, sauvegardée en `bot_v1`.
    3. Traduction des mises hors abstraction (pseudo-harmonic mapping).
@@ -60,7 +64,7 @@ Règles de dépendance : `engine` ne dépend de rien d'autre dans le projet. `bo
    5. Apprentissage continu : les mains jouées alimentent les profils, et le self-play reprend depuis le dernier checkpoint. Une nouvelle version n'est promue que si elle bat la précédente en duplicate.
    6. 6-max : même pipeline (MCCFR multi-joueurs, façon Pluribus).
    7. v2 : Deep CFR (PyTorch) et subgame solving en temps réel.
-4. **Échelle de niveaux** : L1 bots simples, L2 mélange plus solide, L3 anciennes versions, L4 meilleure version puis Slumbot, s'il est joignable (bot de recherche heads-up avec une API publique prévue pour être affronté par d'autres bots).
+4. **Échelle de niveaux** (faite ; Slumbot expérimental) : L1 bots simples, L2 mélange plus solide, L3 anciennes versions, L4 meilleure version puis Slumbot, s'il est joignable (bot de recherche heads-up avec une API publique prévue pour être affronté par d'autres bots).
    - Montée : au moins 50 000 mains en duplicate, et borne basse de l'IC 95 % du bb/100 > 0.
    - Descente : borne haute < 0 au niveau supérieur sur la fenêtre glissante.
-5. **Suivi et interface** : dashboard HTML (courbes, bb/100 par niveau, VPIP/PFR/AF, progrès entre versions), partie dans le terminal puis interface web, avec le bot qui explique sa décision (bucket, fréquences de la stratégie, ajustement d'exploitation).
+5. **Suivi et interface** (fait) : dashboard HTML (courbes, bb/100 par niveau, VPIP/PFR/AF, progrès entre versions), partie dans le terminal puis interface web, avec le bot qui explique sa décision (bucket, fréquences de la stratégie, ajustement d'exploitation).

@@ -240,8 +240,10 @@ class HandState:
     def apply(self, action: Action) -> None:
         legal = self.legal_actions()
         if not legal.is_legal(action):
-            raise IllegalActionError(
-                f"seat {self.to_act} cannot '{action}' (legal: {legal})")
+            hint = ""
+            if action.type is ActionType.RAISE and legal.can_raise:
+                hint = f" (relance entre {legal.min_raise_to} et {legal.max_raise_to})"
+            raise IllegalActionError(f"action illégale pour le siège {self.to_act} : {action}{hint}")
         p = self.players[self.to_act]
         t = action.type
         if t is ActionType.FOLD:

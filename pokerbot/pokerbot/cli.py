@@ -1,80 +1,217 @@
-"""Command-line entry point: ``python -m pokerbot <command>``."""
+"""Command-line entry point: ``python -m pokerbot <command>`` (see README)."""
 from __future__ import annotations
 
 import argparse
 import time
 from pathlib import Path
 
-from .bots import RandomBot
-from .engine import HandStore, Table, format_hand
 
-
-def cmd_simulate(args: argparse.Namespace) -> None:
-    agents = [RandomBot(f"random{i + 1}", seed=args.seed + i) for i in range(args.players)]
+def cmd_simulate(a):
+    from .bots import make_agent
+    from .engine import HandStore, Table, format_hand
+    from .evaluation.stats import compute_stats, format_stats_table
+    specs = a.agents.split(",") if a.agents else ["random"] * a.players
+    agents = [make_agent(s, name=f"{s}{i + 1}", seed=a.seed + i) for i, s in enumerate(specs)]
     store = None
-    if args.db:
-        Path(args.db).parent.mkdir(parents=True, exist_ok=True)
-        store = HandStore(args.db, session=args.session)
-    table = Table(agents, seed=args.seed, store=store, name=args.session)
-    log = open(args.log, "w", encoding="utf-8") if args.log else None
+    if a.db:
+        Path(a.db).parent.mkdir(parents=True, exist_ok=True)
+        store = HandStore(a.db, session=a.session)
+    table = Table(agents, seed=a.seed, store=store, name=a.session)
+    log = open(a.log, "w", encoding="utf-8") if a.log else None
     t0 = time.perf_counter()
-    totals = [0] * args.players
-    for i, rec in enumerate(table.play(args.hands)):
-        for s, p in enumerate(rec.payoffs):
-            totals[s] += p
+    recs = []
+    for i, rec in enumerate(table.play(a.hands)):
+        recs.append(rec)
         if log:
             log.write(format_hand(rec) + "\n\n")
-        if i < args.show:
-            print(format_hand(rec, in_bb=args.bb), end="\n\n")
+        if i < a.show:
+            print(format_hand(rec, in_bb=a.bb), end="\n\n")
     dt = time.perf_counter() - t0
     if log:
         log.close()
-    print(f"{args.hands} hands, {args.players} players in {dt:.2f}s "
-          f"({args.hands / dt:,.0f} hands/s{', with SQLite' if store else ''})")
-    for a, t in zip(agents, totals):
-        print(f"  {a.name:10s} {t / table.bb:+10.1f} bb   {100 * t / table.bb / args.hands:+9.1f} bb/100")
+    print(f"{a.hands} mains, {len(agents)} joueurs en {dt:.1f}s ({a.hands / dt:,.0f} mains/s)\n")
+    print(format_stats_table(compute_stats(recs)))
     if store:
-        print(f"saved to {args.db} ({store.count()} hands in DB)")
+        print(f"\nsauvegardé dans {a.db} ({store.count()} mains)")
         store.close()
 
 
-def cmd_show(args: argparse.Namespace) -> None:
-    with HandStore(args.db) as store:
-        print(format_hand(store.get(args.hand_id), in_bb=args.bb))
+def cmd_show(a):
+    from .engine import HandStore, format_hand
+    with HandStore(a.db) as store:
+        print(format_hand(store.get(a.hand_id), in_bb=a.bb))
 
 
-def cmd_results(args: argparse.Namespace) -> None:
-    with HandStore(args.db) as store:
-        print(f"{'player':12s} {'hands':>8s} {'net bb':>10s} {'bb/100':>9s}")
-        for name, k, net, bb100 in store.player_results(args.session):
-            print(f"{name:12s} {k:8d} {net:+10.1f} {bb100:+9.1f}")
+def cmd_stats(a):
+    from .engine import HandStore
+    from .evaluation.stats import compute_stats, format_stats_table
+    with HandStore(a.db) as store:
+        print(format_stats_table(compute_stats(store.iter_hands(a.session))))
+
+
+def cmd_train(a):
+    from .training.run import train_version
+    train_version(a.iterations, workers=a.workers, parent=a.parent, minutes=a.minutes,
+                  rm_plus=a.rm_plus, seed=a.seed)
+
+
+def cmd_versions(a):
+    from .training.registry import list_versions, read_meta, resolve
+    try:
+        best = resolve("best")
+    except FileNotFoundError:
+        print("aucune version entraînée")
+        return
+    from .evaluation.ladder import current_level
+    for v in list_versions():
+        m = read_meta(v)
+        print(f"{'*' if v == best else ' '} {v:8s} {m['iterations']:>11,} it.  {m['infosets']:>9,} infosets  "
+              f"parent={m.get('parent')}  niveau={current_level(v)}  {m['created']}")
+    print("* = meilleure version (utilisée par bot:best)")
+
+
+def cmd_set_best(a):
+    from .training.registry import set_best
+    print(f"meilleure version : {set_best(a.version)}")
+
+
+def cmd_match(a):
+    from .evaluation.duplicate import duplicate_match
+    t0 = time.time()
+    res = duplicate_match(a.agents.split(","), a.deals, seed=a.seed, workers=a.workers)
+    print(res.summary())
+    if res.fallback_rate:
+        print("  décisions hors stratégie CFR : " +
+              ", ".join(f"{k} {100 * v:.0f}%" for k, v in res.fallback_rate.items()))
+    print(f"  ({time.time() - t0:.0f}s)")
+
+
+def cmd_ladder(a):
+    from .evaluation.ladder import climb
+    climb(a.bot, hands=a.hands, workers=a.workers, min_hands=a.min_hands)
+
+
+def cmd_learn(a):
+    from .evaluation.ladder import climb
+    from .training.registry import list_versions
+    from .training.run import train_version
+    for r in range(a.rounds):
+        parent = "best" if list_versions() else None
+        print(f"=== Cycle {r + 1}/{a.rounds} : entraînement depuis {parent or 'zéro'} ===")
+        v = train_version(a.iterations, workers=a.workers, parent=parent, minutes=a.minutes)
+        print(f"=== Cycle {r + 1}/{a.rounds} : échelle de niveaux pour {v} ===")
+        climb(v, hands=a.hands, workers=a.workers, min_hands=a.min_hands)
+
+
+def cmd_play(a):
+    from .ui.terminal import play_terminal
+    play_terminal(a.opponents.split(","), seed=a.seed, name=a.name)
+
+
+def cmd_web(a):
+    from .ui.web_server import serve
+    serve(a.port, a.opponents.split(","), host=a.host)
+
+
+def cmd_dashboard(a):
+    from .ui.dashboard import export_html
+    out = export_html(a.out, a.db)
+    print(f"tableau de bord écrit dans {out}")
+
+
+def cmd_slumbot(a):
+    from .evaluation.slumbot import play_slumbot
+    (m, lo, hi), _ = play_slumbot(a.hands, a.bot)
+    print(f"vs Slumbot : {m:+.1f} bb/100 [{lo:+.1f}, {hi:+.1f}]")
 
 
 def main(argv: list[str] | None = None) -> None:
-    p = argparse.ArgumentParser(prog="pokerbot")
+    p = argparse.ArgumentParser(prog="pokerbot", description="Bots de NLHE qui apprennent (simulation uniquement)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("simulate", help="play random bots against each other")
-    s.add_argument("--players", type=int, default=6)
+    s = sub.add_parser("simulate", help="faire jouer des bots entre eux")
+    s.add_argument("--agents", default="", help="ex. abc,station,nit,maniac,random,bot:best")
+    s.add_argument("--players", type=int, default=6, help="nombre de bots aléatoires si --agents est vide")
     s.add_argument("--hands", type=int, default=1000)
     s.add_argument("--seed", type=int, default=0)
-    s.add_argument("--db", default="", help="SQLite file to save hands to")
-    s.add_argument("--log", default="", help="text file with readable hand histories")
+    s.add_argument("--db", default="", help="fichier SQLite où sauvegarder les mains")
+    s.add_argument("--log", default="", help="fichier texte d'historique lisible")
     s.add_argument("--session", default="sim")
-    s.add_argument("--show", type=int, default=0, help="print the first N hands")
-    s.add_argument("--bb", action="store_true", help="display amounts in big blinds")
+    s.add_argument("--show", type=int, default=0, help="afficher les N premières mains")
+    s.add_argument("--bb", action="store_true", help="montants en big blinds")
     s.set_defaults(func=cmd_simulate)
 
-    s = sub.add_parser("show", help="print one hand from the database")
+    s = sub.add_parser("show", help="afficher une main de la base")
     s.add_argument("hand_id", type=int)
     s.add_argument("--db", default="data/hands.db")
     s.add_argument("--bb", action="store_true")
     s.set_defaults(func=cmd_show)
 
-    s = sub.add_parser("results", help="net results per player in the database")
-    s.add_argument("--db", default="data/hands.db")
+    s = sub.add_parser("stats", help="VPIP/PFR/AF... des joueurs d'une base")
+    s.add_argument("--db", default="data/human.db")
     s.add_argument("--session", default=None)
-    s.set_defaults(func=cmd_results)
+    s.set_defaults(func=cmd_stats)
+
+    s = sub.add_parser("train", help="entraîner une nouvelle version (MCCFR)")
+    s.add_argument("--iterations", type=int, default=1_000_000)
+    s.add_argument("--workers", type=int, default=4)
+    s.add_argument("--from", dest="parent", default=None, help="reprendre depuis une version (ex. best, v2)")
+    s.add_argument("--minutes", type=float, default=None, help="limite de temps")
+    s.add_argument("--rm-plus", action="store_true", help="regret-matching+ (CFR+) au lieu de Linear CFR")
+    s.add_argument("--seed", type=int, default=0)
+    s.set_defaults(func=cmd_train)
+
+    s = sub.add_parser("versions", help="lister les versions du bot")
+    s.set_defaults(func=cmd_versions)
+
+    s = sub.add_parser("set-best", help="revenir à / choisir une version (rollback)")
+    s.add_argument("version")
+    s.set_defaults(func=cmd_set_best)
+
+    s = sub.add_parser("match", help="match duplicate entre agents")
+    s.add_argument("agents", help="ex. bot:best,abc")
+    s.add_argument("--deals", type=int, default=5000)
+    s.add_argument("--workers", type=int, default=4)
+    s.add_argument("--seed", type=int, default=0)
+    s.set_defaults(func=cmd_match)
+
+    s = sub.add_parser("ladder", help="évaluer une version sur l'échelle de niveaux")
+    s.add_argument("--bot", default="latest")
+    s.add_argument("--hands", type=int, default=50_000, help="mains par niveau")
+    s.add_argument("--min-hands", type=int, default=50_000)
+    s.add_argument("--workers", type=int, default=4)
+    s.set_defaults(func=cmd_ladder)
+
+    s = sub.add_parser("learn", help="boucle continue : entraîner puis évaluer, N cycles")
+    s.add_argument("--rounds", type=int, default=3)
+    s.add_argument("--iterations", type=int, default=1_000_000)
+    s.add_argument("--minutes", type=float, default=None)
+    s.add_argument("--hands", type=int, default=50_000)
+    s.add_argument("--min-hands", type=int, default=50_000)
+    s.add_argument("--workers", type=int, default=4)
+    s.set_defaults(func=cmd_learn)
+
+    s = sub.add_parser("play", help="jouer contre un bot dans le terminal")
+    s.add_argument("--opponents", default="bot:best", help="ex. bot:best ou bot:best,abc,nit (6-max)")
+    s.add_argument("--name", default="you")
+    s.add_argument("--seed", type=int, default=None)
+    s.set_defaults(func=cmd_play)
+
+    s = sub.add_parser("web", help="interface web locale (table + tableau de bord)")
+    s.add_argument("--port", type=int, default=8000)
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--opponents", default="bot:best")
+    s.set_defaults(func=cmd_web)
+
+    s = sub.add_parser("dashboard", help="exporter le tableau de bord en un fichier HTML")
+    s.add_argument("--out", default="data/dashboard.html")
+    s.add_argument("--db", action="append", default=[], help="base(s) de mains supplémentaire(s)")
+    s.set_defaults(func=cmd_dashboard)
+
+    s = sub.add_parser("slumbot", help="(expérimental) jouer contre Slumbot via son API")
+    s.add_argument("--hands", type=int, default=1000)
+    s.add_argument("--bot", default="bot:best")
+    s.set_defaults(func=cmd_slumbot)
 
     args = p.parse_args(argv)
     args.func(args)

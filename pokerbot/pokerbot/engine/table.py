@@ -56,6 +56,7 @@ class Table:
             hand_no=self.hand_no, seed=hand_seed,
         )
         for seat, agent in enumerate(self.agents):
+            agent.table_names = self.names
             agent.on_hand_start(seat, state.view(seat))
         while not state.is_over:
             seat = state.to_act

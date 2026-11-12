@@ -40,8 +40,9 @@ class Action:
 
     def __str__(self) -> str:
         if self.type is ActionType.RAISE:
-            return f"raise to {self.amount}"
-        return self.type.name.lower()
+            return f"relance à {self.amount}"
+        return {ActionType.FOLD: "se couche", ActionType.CHECK: "check",
+                ActionType.CALL: "suit"}[self.type]
 
 
 @dataclass(frozen=True, slots=True)

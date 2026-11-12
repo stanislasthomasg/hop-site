@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tableau de bord pokerbot</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header><strong>pokerbot</strong>
+  <nav><a href="/">Table</a><a href="/dashboard" aria-current="page">Tableau de bord</a></nav>
+</header>
+<main>
+  <h1>Tableau de bord</h1>
+  <p class="status" id="status" role="status"></p>
+  <section class="panel"><h2>Versions du bot</h2><div class="table-wrap" id="versions"></div></section>
+  <div class="grid2">
+    <section class="panel"><h2>bb/100 par niveau (IC 95 %)</h2><div id="levels"></div><div class="legend" id="levels-legend"></div></section>
+    <section class="panel"><h2>Progrès entre versions</h2><div id="progress"></div><div class="legend" id="progress-legend"></div></section>
+  </div>
+  <section class="panel"><h2>Courbes de gains en évaluation duplicate (bb cumulés)</h2>
+    <label>Évaluation <select id="eval-pick"></select></label>
+    <div id="eval-curve"></div></section>
+  <section class="panel"><h2>Évaluations</h2><div class="table-wrap" id="evals"></div></section>
+  <div class="grid2">
+    <section class="panel"><h2>Vos gains contre les bots (bb cumulés)</h2><div id="human-curve"></div></section>
+    <section class="panel"><h2>Statistiques des joueurs</h2><div class="table-wrap" id="players"></div></section>
+  </div>
+</main>
+<script src="/static/dashboard.js"></script>
+</body>
+</html>
