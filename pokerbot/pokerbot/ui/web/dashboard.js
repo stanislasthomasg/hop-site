@@ -34,7 +34,10 @@ function lineChart(target, series, xLabel) {
   series.forEach((s, i) => {
     const xs = xsOf(s);
     const d = s.ys.map((y, k) => `${k ? "L" : "M"}${sx(xs[k]).toFixed(1)},${sy(y).toFixed(1)}`).join("");
-    g.append(svg("path", { d, fill: "none", stroke: s.color || COLORS[i % COLORS.length], "stroke-width": 2 }));
+    const color = s.color || COLORS[i % COLORS.length];
+    g.append(svg("path", { d, fill: "none", stroke: color, "stroke-width": 2 }));
+    if (s.ys.length <= 30)  // few points (one per version): mark each one so a single point is visible
+      s.ys.forEach((y, k) => g.append(svg("circle", { cx: sx(xs[k]), cy: sy(y), r: 4, fill: color })));
   });
   target.replaceChildren(g);
 }
@@ -86,7 +89,8 @@ function table(target, cols, rows) {
       const td = tr.insertCell();
       const v = r[key];
       td.textContent = v === null || v === undefined ? "–" : (typeof v === "boolean" ? (v ? "oui" : "") : v);
-      if (key === "bb100" && typeof v === "number") td.className = v >= 0 ? "win" : "loss";
+      if (typeof v !== "number") td.classList.add("text");
+      if (key === "bb100" && typeof v === "number") td.classList.add(v >= 0 ? "win" : "loss");
     }
   }
   target.replaceChildren(t);

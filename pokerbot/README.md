@@ -113,6 +113,17 @@ Le tableau de bord affiche :
   - Les profils sont sauvegardés et s'enrichissent à chaque main.
 - **Apprentissage continu.** Toutes les mains jouées alimentent les profils adverses. La stratégie progresse par cycles d'entraînement repris depuis la meilleure version. Une nouvelle version ne remplace la meilleure que si elle la bat en duplicate de façon statistiquement significative.
 
+## Résultats obtenus (duplicate, 50 000 mains par niveau, IC 95 %)
+
+| Version | Entraînement | N1 bots simples | N2 profils ABC | N4 contre la meilleure version |
+|---|---|---|---|---|
+| bot_v1 | 400 000 it., grand arbre, 10 min | +236 [+214, +258] ✅ | +0,4 [−12, +13] (reste) | – |
+| bot_v2 | 1,94 M it., petit arbre, 35 min | +182 [+164, +201] ✅ | +48 [+37, +59] ✅ | +38 [+25, +52] contre v1 ✅ |
+
+Avec un arbre plus petit, v2 a convergé beaucoup mieux que v1. Il bat les trois variantes d'ABC et la version précédente, ce qui en fait la meilleure version.
+
+v1 gagne plus que v2 contre les bots très faibles (aléatoire, maniac). C'est attendu : le CFR vise l'équilibre, pas l'exploitation maximale. La couche d'exploitation compense en partie.
+
 ## Limites connues (honnêtes)
 
 - La stratégie CFR est **heads-up**. En 6-max, le bot l'utilise quand il ne reste que deux joueurs. Au préflop multiway et dans les coups hors de l'arbre abstrait, il joue avec des règles ABC (ranges et équité), ajustées par l'exploitation. L'explication indique toujours lequel des deux modes il utilise.

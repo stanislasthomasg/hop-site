@@ -40,7 +40,7 @@ main > *, .grid2 > * { min-width: 0; }
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th:first-child, td:first-child { text-align: left; }
+th:first-child, td:first-child, td.text { text-align: left; }
 th { color: var(--muted); font-weight: 600; }
 .grid2 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 pre { white-space: pre-wrap; font: 13px/1.45 ui-monospace, Menlo, monospace; margin: 0; }
