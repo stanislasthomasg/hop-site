@@ -26,6 +26,38 @@ Dans le dossier `pokerbot` :
 
 Le premier lancement installe tout automatiquement (1 à 2 minutes), puis la table s'ouvre dans le navigateur. Les fois suivantes, l'appli démarre directement. Fermez la fenêtre du terminal pour arrêter.
 
+## Autopilote : le bot s'améliore tout seul sur votre PC
+
+Double-cliquez sur `Autopilote-pokerbot.command` (Mac/Linux) ou `Autopilote-pokerbot.bat` (Windows), ou lancez `python -m pokerbot autopilot`. Il tourne sans surveillance, cycle après cycle :
+
+1. **Entraîne** une nouvelle version (60 min par défaut), en reprenant la dernière version entraînée sur ce PC.
+2. **L'évalue** sur l'échelle de niveaux, en conditions cash. Elle ne devient la meilleure version que si elle bat l'actuelle de façon significative ; sinon, l'ancienne reste en place.
+3. **Met à jour** le tableau de bord (`data/dashboard.html`) et le journal (`data/autopilot.log`).
+4. **Si la meilleure version a changé**, reconstruit le site jouable (`site/`) et, si vous l'avez configuré, le publie sur votre site web.
+5. **Joue**, si vous l'avez configuré, sur les plateformes prévues pour les bots (serveurs ACPC, Slumbot).
+
+Pendant ce temps, la table de jeu reste ouverte dans le navigateur (http://127.0.0.1:8000). Fermez la fenêtre pour arrêter : l'autopilote reprend où il en était au prochain lancement.
+
+Les réglages sont dans `autopilot.json`, créé au premier lancement :
+
+```json
+{
+  "train_minutes": 60,
+  "workers": 3,
+  "ladder_hands": 50000,
+  "web": {"enabled": true, "host": "127.0.0.1", "port": 8000, "open_browser": true},
+  "site": {"build": true, "deploy_repo": "", "deploy_subdir": "poker", "push": false},
+  "platforms": {"acpc": [], "slumbot_hands": 0}
+}
+```
+
+Quelques réglages utiles :
+- `workers` : nombre de processus de calcul. Par défaut, tous les cœurs moins un, pour que le PC reste utilisable.
+- `web.host` : `0.0.0.0` rend la table accessible depuis les autres appareils du réseau local (téléphone, autre PC).
+- `platforms.acpc` : serveurs ACPC sur lesquels jouer, par exemple `[{"host": "…", "port": 18791}]`.
+
+**Publier automatiquement sur votre site web.** Mettez dans `deploy_repo` le chemin d'un clone git de votre site, par exemple votre dépôt GitHub Pages, et `"push": true`. À chaque nouvelle meilleure version, l'autopilote copie le site jouable dans `<site>/poker/`, commite, puis pousse avec **vos** identifiants git. Votre site sert alors toujours la meilleure version du bot à `https://<votre-site>/poker/`. Avec `"push": false`, il commite sans pousser : vous vérifiez, puis vous poussez vous-même.
+
 ## Installation
 
 Il faut Python 3.10 ou plus récent (`python3 --version`) et git.

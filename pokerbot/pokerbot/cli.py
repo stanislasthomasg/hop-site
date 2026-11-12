@@ -142,6 +142,11 @@ def cmd_acpc(a):
     print(f"connexion fermée par le serveur après {n} mains")
 
 
+def cmd_autopilot(a):
+    from .autopilot import run
+    run(cycles=a.cycles)
+
+
 def cmd_slumbot(a):
     from .evaluation.slumbot import play_slumbot
     (m, lo, hi), _ = play_slumbot(a.hands, a.bot)
@@ -258,6 +263,10 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("port", type=int)
     s.add_argument("--bot", default="bot:best")
     s.set_defaults(func=cmd_acpc)
+
+    s = sub.add_parser("autopilot", help="améliorer le bot en continu, sans surveillance (voir autopilot.json)")
+    s.add_argument("--cycles", type=int, default=None, help="nombre de cycles (défaut : celui d'autopilot.json, 0 = sans fin)")
+    s.set_defaults(func=cmd_autopilot)
 
     s = sub.add_parser("slumbot", help="(expérimental) jouer contre Slumbot via son API")
     s.add_argument("--hands", type=int, default=1000)

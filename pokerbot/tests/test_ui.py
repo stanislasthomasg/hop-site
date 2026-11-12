@@ -140,3 +140,27 @@ def test_pretrained_model_installs_on_first_run(tmp_path, monkeypatch):
     from pokerbot.bots import make_agent
     bot = make_agent("bot:best", seed=0)
     assert bot.six is not None and len(bot.bp) > 1000
+
+
+def test_autopilot_config_and_publish(tmp_path, monkeypatch):
+    import subprocess
+    from pokerbot import autopilot
+    monkeypatch.setenv("POKERBOT_MODELS", str(tmp_path / "models"))
+    monkeypatch.setattr(autopilot, "CONFIG_FILE", tmp_path / "autopilot.json")
+    monkeypatch.setattr(autopilot, "LOG_FILE", tmp_path / "autopilot.log")
+    monkeypatch.setattr(autopilot, "PROJECT_ROOT", tmp_path)
+    cfg = autopilot.load_config()                       # creates the default file
+    assert (tmp_path / "autopilot.json").exists() and cfg["web"]["port"] == 8000
+    (tmp_path / "autopilot.json").write_text('{"train_minutes": 5, "site": {"push": false}}')
+    cfg = autopilot.load_config()
+    assert cfg["train_minutes"] == 5 and cfg["site"]["deploy_subdir"] == "poker"   # merged
+    assert autopilot.resumable_version() is None        # pre-trained model has no tables
+    site = tmp_path / "website"
+    subprocess.run(["git", "init", "-q", str(site)], check=True)
+    for k, v in (("user.email", "t@t"), ("user.name", "t")):
+        subprocess.run(["git", "-C", str(site), "config", k, v], check=True)
+    cfg["site"]["deploy_repo"] = str(site)
+    autopilot.publish_site(cfg)
+    assert (site / "poker" / "index.html").exists()
+    log = subprocess.run(["git", "-C", str(site), "log", "--oneline"], capture_output=True, text=True).stdout
+    assert "nouvelle meilleure version" in log
